@@ -5,21 +5,21 @@ import { parse } from "@babel/parser";
 
 export interface EditTarget {
   /** Exact text. Must be unique (inside the other target when combined) unless `occurrence` picks one. */
-  find?: string;
+  find?: string | undefined;
   /** 1-based inclusive line range. Pair with `expect` (the text you read there) to detect shifted lines. */
-  lines?: { start: number; end: number };
-  expect?: string;
+  lines?: { start: number; end: number } | undefined;
+  expect?: string | undefined;
   /** Function, component, const, class, interface, type, enum, or `Class.method`. */
-  symbol?: string;
+  symbol?: string | undefined;
   /** JSX element: `tag`, `tag.className` or `tag#id` (e.g. "section.hero", "Navbar"). */
-  jsx?: string;
+  jsx?: string | undefined;
   /** CSS selector of a rule (e.g. ".hero-title"); `media` scopes it to an @media/@supports block. */
-  selector?: string;
-  media?: string;
+  selector?: string | undefined;
+  media?: string | undefined;
   /** Disambiguates several symbol/jsx/selector matches: keep only regions containing this text. */
-  contains?: string;
+  contains?: string | undefined;
   /** 1-based pick among several matches, used only when the other narrowing still leaves duplicates. */
-  occurrence?: number;
+  occurrence?: number | undefined;
 }
 export type EditMode = "replace" | "before" | "after" | "append";
 export interface Located { start: number; end: number; method: string; note?: string }

@@ -32,7 +32,8 @@ const FIRST_BYTE_MS = 170_000, IDLE_MS = 30_000;
 type CallOpts = { maxTokens: number; think: boolean; firstByteMs?: number; json?: boolean };
 
 /** Provider-specific request shaping (reasoning flags differ per provider). JSON mode only where the provider supports it. */
-function body(t: ModelTarget, messages: Msg[], o: CallOpts) {
+function body(t: ModelTarget, messages: Msg[], o0: CallOpts) {
+  const o = { ...o0, maxTokens: Math.min(o0.maxTokens, PROVIDERS[t.provider].maxOut) };
   const json = o.json ? { response_format: { type: "json_object" } } : {};
   if (isNemotron(t)) {
     const msgs = messages.map((m, i) => (i === 0 && m.role === "system" ? { ...m, content: `${m.content} ${o.think ? "/think" : "/no_think"}` } : m));
@@ -44,7 +45,12 @@ function body(t: ModelTarget, messages: Msg[], o: CallOpts) {
 
 type CallResult = { text: string; finish: string };
 
+// Providers that just refused (bad key / rate limit) are skipped for a while instead of being hit on every call.
+const cooldown = new Map<string, number>();
+const cooling = (t: ModelTarget) => (cooldown.get(t.provider) ?? 0) > Date.now();
+
 async function callRaw(t: ModelTarget, messages: Msg[], opts: CallOpts): Promise<CallResult> {
+  if (cooling(t)) throw new ProviderError(`${t.provider} skipped (cooling down after a recent refusal)`);
   const key = envStr(PROVIDERS[t.provider].secret);
   if (!key) throw new ProviderError(`${t.provider} is not configured`);
   const ctl = new AbortController();
@@ -64,6 +70,8 @@ async function callRaw(t: ModelTarget, messages: Msg[], opts: CallOpts): Promise
   }
   if (!res.ok) {
     clearTimeout(timer);
+    if (res.status === 401 || res.status === 403) cooldown.set(t.provider, Date.now() + 10 * 60_000);
+    else if (res.status === 429) cooldown.set(t.provider, Date.now() + Math.min(120, Number(res.headers.get("retry-after")) || 30) * 1000);
     const detail = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160);
     throw new ProviderError(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
   }
@@ -213,7 +221,7 @@ const RULES = `RULES:
 7. Files you change are validated automatically at the end of the turn if you didn't run {"kind":"check"}; you only see that result next turn.
 8. Two project types. Static site (default): index.html at the root, relative paths, plain HTML/CSS/JS (ES modules via relative .js imports or full CDN URLs), no npm. React + Vite (when the user asks for React/TypeScript/Vite or package.json already lists vite): keep real React + TypeScript with package.json (react, react-dom, vite, @vitejs/plugin-react, typescript), vite.config.ts, tsconfig.json, root index.html loading /src/main.tsx and .tsx files under src/; create package.json and vite.config.ts first; npm imports are fine — a separate build runtime compiles it after your turn. Never convert a React/TypeScript request into a CDN or plain-JS site.
 9. New project? Create the files directly (still keep them small and linked correctly), then build.
-At most 8 actions per turn. When the work is complete and the last build passed, reply with "actions": [] and "done": true, and a short final summary of what the user can try in the preview.
+At most 4 actions per turn, and at most 2 new or rewritten files per turn; keep every file focused (under ~150 lines) and prefer small find/replace edits over full rewrites. Read only the files you need. When the work is complete and the last build passed, reply with "actions": [] and "done": true, and a short final summary of what the user can try in the preview.
 If the user only asked a question, answer in "message" with "done": true. Keep messages concise; tool details stay internal.`;
 const PLAN_LOOP = " PLAN MODE IS ON: only use read/search/inspect/understand/validate tools and think, never edit, create, delete or build. When you have a plan, put it in message and set done true.";
 
@@ -250,7 +258,9 @@ export async function runAgentRound(input: { model: AiModel; depth: AiDepth; pla
   const system = `You are Speed, an AI software agent building the project "${input.projectName}". ${d.guide}\n${LOOP_RULES(input.tools)}\n${RULES}${input.plan ? PLAN_LOOP : ""}`;
   const approved = input.approvedPlan ? `APPROVED PLAN (implement all of it; every listed file must exist, be linked and contain the requested design/behaviour):\n${input.approvedPlan}\n` : "";
   const state = `${approved}Turn ${input.round + 1}. Project files (${input.files.length}): ${input.files.length ? input.files.join(", ") : "(empty project)"}\n${input.results ? `Results of your last actions:\n${input.results}` : "No actions run yet."}\nReply with the JSON object only.`;
-  const messages: Msg[] = [{ role: "system", content: system }, ...input.history.slice(-d.history), { role: "user", content: state }];
+  // Only recent turns, each capped: file contents never travel through chat history.
+  const hist = input.history.slice(-Math.min(d.history, 8)).map((m) => ({ ...m, content: m.content.length > 1500 ? `${m.content.slice(0, 1500)}…` : m.content }));
+  const messages: Msg[] = [{ role: "system", content: system }, ...hist, { role: "user", content: state }];
   const opts = { maxTokens: MAX_OUTPUT_TOKENS, think: d.think, json: true };
   // An unparseable reply counts as a provider failure, so the chain moves to the next model.
   const [res, ok] = await Promise.all([callChain(chainFor(input.model), messages, opts, parseStep), safe]);

@@ -54,6 +54,11 @@ export function filesIn(text: string): string[] {
 /** Deterministic checks over the captured diagnostics. Returns a FAIL verdict, `null` when nothing is wrong, or
  *  `{ unverifiable }` when the runtime could not produce a preview for reasons outside the project's code. */
 export function deterministicVerdict(d: PreviewDiag): VisualVerdict | null | { unverifiable: string } {
+  // Dependency install failures caused by the project's package.json (non-existent package/version, peer conflict) are code defects.
+  if (/npm (?:error|ERR!) code (?:ETARGET|E404|ERESOLVE|EINVALIDTAGNAME|EJSONPARSE)|No matching version found|is not in this registry/i.test(d.error ?? "")) {
+    const pkg = /(?:No matching version found for|'|")(@?[\w./-]+@[^\s.'"]+)/.exec(d.error ?? "")?.[1];
+    return fail("build_error", "critical", `Installing the project's dependencies failed${pkg ? ` (${pkg} does not exist)` : ""}, so there is no preview to open.`, [(d.error ?? "").slice(0, 600)], "Fix package.json: remove or correct the package/version that npm cannot install (e.g. drop @types packages for libraries that ship their own types).", ["package.json"]);
+  }
   if (d.stage === "build") return fail("build_error", "critical", "The production build failed, so there is no preview to open.", [d.error ?? ""], "Fix the build error shown in the evidence.", filesIn(d.error ?? ""));
   if (d.stage === "server") return fail("navigation_failure", "critical", "The built app could not be served by the preview server.", [d.error ?? ""], "Check vite.config and index.html for invalid configuration.", ["vite.config.ts", "index.html"]);
   if (d.stage !== "captured" || !d.views?.length) return { unverifiable: d.error || `Preview check did not complete (stage: ${d.stage})` };

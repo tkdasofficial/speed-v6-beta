@@ -265,3 +265,35 @@ export function validateProject(store: FileStore): { errors: Diagnostic[]; warni
   const enriched = all.map((x) => classify(store, x));
   return { errors: enriched.filter((x) => x.severity === "error"), warnings: enriched.filter((x) => x.severity === "warning") };
 }
+
+const ROOT_SRC_OK = /^src\/(main|App|vite-env\.d)\.(tsx?|jsx?)$/;
+/** React+Vite project convention, checked only on files the current task CREATED (existing projects are never
+ *  reorganized): pages at src/pages/<name>/index.tsx, one shared stylesheet at src/styles/index.css. */
+export function structureIssues(store: FileStore, created: readonly string[]): string[] {
+  if (!isViteProject(store)) return [];
+  const out: string[] = [];
+  const existingCss = store.list().some((f) => f.path === "src/styles/index.css");
+  for (const p of created) {
+    if (!store.get(p)) continue;
+    if (/^src\/.*\.(css|scss)$/i.test(p) && p !== "src/styles/index.css")
+      out.push(`${p}: use the single shared stylesheet src/styles/index.css${existingCss ? " (it exists — move these rules there)" : ""} instead of a separate CSS file`);
+    else if (/^src\/pages\/[^/]+\.(tsx|jsx)$/i.test(p)) {
+      const name = p.slice(10).replace(/\.(tsx|jsx)$/i, "").replace(/Page$/, "").replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+      out.push(`${p}: pages live in their own folder — use src/pages/${name}/index.tsx`);
+    } else if (/^src\/pages\/[^/]+\/(?!index\.)[^/]+\.(tsx|jsx)$/i.test(p) && !store.get(p.replace(/[^/]+$/, "index.tsx")))
+      out.push(`${p}: the page file must be named index.tsx (${p.replace(/[^/]+$/, "index.tsx")})`);
+    else if (/^src\/[^/]+\.(tsx|jsx)$/i.test(p) && !ROOT_SRC_OK.test(p))
+      out.push(`${p}: don't put pages/components directly in src/ — pages go in src/pages/<name>/index.tsx, components in src/components/`);
+  }
+  if (created.includes("src/main.tsx") && !store.get("src/styles/index.css")) out.push("src/styles/index.css is missing: create the shared stylesheet and import it once in src/main.tsx (import \"./styles/index.css\")");
+  // A wrong-path file whose correct twin already exists is a leftover duplicate: say so explicitly.
+  return out.map((m) => { const p = m.slice(0, m.indexOf(":")); const ok = conventionalPath(p); return ok !== p && store.get(ok) ? `${p}: duplicate of ${ok} — update imports to ${ok} and delete ${p}` : m; });
+}
+
+/** Maps a NEW file path to the React+Vite convention (pages in folders, one shared stylesheet). Pure; never applied to existing files. */
+export function conventionalPath(p: string): string {
+  if (/^src\/(styles|index|App|global|main)\.(css|scss)$/i.test(p)) return "src/styles/index.css";
+  const m = /^src\/(?:pages\/)?([A-Z][A-Za-z0-9]*?)Page\.(tsx|jsx)$/.exec(p) ?? /^src\/pages\/([A-Za-z][A-Za-z0-9]*)\.(tsx|jsx)$/.exec(p);
+  if (m) return `src/pages/${m[1]!.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()}/index.${m[2]}`;
+  return p;
+}

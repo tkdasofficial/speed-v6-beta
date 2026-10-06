@@ -21,7 +21,7 @@ type Phase = "planning" | "awaiting" | "building" | "validating" | "previewing";
 const MAX_VISUAL_REPAIRS = 3; // preview verification → repair → rebuild → re-verify cycles
 type State = {
   phase?: Phase; changed?: string[]; created?: string[]; lastCheck?: boolean | null; round?: number; results?: string; failedBuilds?: number;
-  failedIds?: string[]; failedPatches?: string[]; pendingCreates?: number; baseRevision?: number; mutated?: boolean; plan?: AgentPlan; planVersion?: number; decisionSeq?: number;
+  failedIds?: string[]; failedPatches?: string[]; pendingCreates?: number; structureFixes?: number; baseRevision?: number; mutated?: boolean; plan?: AgentPlan; planVersion?: number; decisionSeq?: number;
   feedback?: string; snippets?: string; fixAttempts?: number; validation?: string; test?: string; n?: number;
   /** Agent Core: analyzed sub-tasks, batches (with their agent_steps ids), relevant files and summary status. */
   ag?: { tasks: SubTask[]; batches: Batch[]; batchSteps: Record<string, string>; relevant?: string[] };
@@ -50,7 +50,17 @@ function labels(name: string, target: string | null): { kind: string; running: s
 }
 /** Legacy/shorthand names the model may still use → the orchestrated tool that does the same work. */
 const ALIASES: Record<string, string> = { edit_file: "update_file", search_text: "search_files", search_filename: "search_files", build_project: "verify_project", build_static: "verify_project", validate_project: "verify_project", get_errors: "detect_errors", get_file_tree: "get_project_structure" };
+/** Some models double-escape a whole file ("line1\\nline2" with no real newlines); unescape that one case. */
+export function unescapeContent(c: unknown): unknown {
+  if (typeof c !== "string" || c.includes("\n") || (c.match(/\\n/g) ?? []).length < 2) return c;
+  return c.replace(/\\r\\n|\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\"/g, '"');
+}
 function toTool(s: Step): { name: string; args: Record<string, unknown> } {
+  const t = toToolRaw(s);
+  if (t.name === "write_file") t.args["content"] = unescapeContent(t.args["content"]);
+  return t;
+}
+function toToolRaw(s: Step): { name: string; args: Record<string, unknown> } {
   switch (s.kind) {
     case "read": return { name: "read_file", args: { path: s.path } };
     case "create": return { name: "write_file", args: { path: s.path, content: s.content ?? "" } };
@@ -361,6 +371,17 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   // A round that only re-runs a passing check has nothing left to do; continuing just burns AI calls.
   const acts = step.actions as Step[];
   if (!step.done && !wrote && built === true && acts.length > 0 && acts.every((a) => a.kind === "check" || (a.kind === "tool" && VERIFY.has(ALIASES[a.name ?? ""] ?? a.name ?? "")))) step.done = true;
+  // Structure gate (deterministic): files this task created in a React+Vite project must follow the convention.
+  if (step.done && built !== false && (st.created ?? []).length && (st.structureFixes ?? 0) < 3) {
+    const { structureIssues } = await import("../../../sandbox/intelligence/validate");
+    const issues = structureIssues((await fs.loadStore(pid)).store, st.created ?? []);
+    if (issues.length) {
+      st.structureFixes = (st.structureFixes ?? 0) + 1;
+      await c.emit("step", { label: "Checking project structure", round });
+      st.results = `${(st.results ?? "").slice(-6000)}\n(automatic) Not done yet — the project structure check failed:\n- ${issues.join("\n- ")}\nCreate the file at the required path (move_file or write_file + delete_file), update every import that points to it, and keep everything else unchanged.`;
+      return { done: false, delayMs: 50 };
+    }
+  }
   if (step.done && built !== false) {
     // A pure answer with no file work and nothing changed ends here; real builds go through validation.
     if (!st.mutated && !st.changed?.length) return end(c, st, "done", step.message || "Done. No files were changed.");

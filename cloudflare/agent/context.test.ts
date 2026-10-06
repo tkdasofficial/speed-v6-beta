@@ -11,3 +11,15 @@ describe("phase 2 context helpers", () => {
     expect(n).toMatch(/used by: src\/App.tsx/); expect(n).toMatch(/ONLY if a real problem/);
   });
 });
+
+import { structureIssues } from "../../sandbox/intelligence/validate";
+describe("structureIssues", () => {
+  const mk = (paths: string[]) => { const m = new Map(paths.map((p) => [p, { path: p, content: p === "package.json" ? '{"devDependencies":{"vite":"5"}}' : "x", encoding: "utf8" }])); return { get: (p: string) => m.get(p), list: () => [...m.values()] } as never; };
+  it("flags wrong page/css paths only among created files", () => {
+    const s = mk(["package.json", "vite.config.ts", "index.html", "src/main.tsx", "src/App.tsx", "src/styles.css", "src/pages/About.tsx", "src/Hero.tsx", "src/pages/home/index.tsx", "src/styles/index.css", "src/old.css"]);
+    const r = structureIssues(s, ["src/main.tsx", "src/App.tsx", "src/styles.css", "src/pages/About.tsx", "src/Hero.tsx", "src/pages/home/index.tsx", "src/styles/index.css"]);
+    expect(r.length).toBe(3); expect(structureIssues(s, ["src/main.tsx"]).length).toBe(0);
+    expect(r.join()).toContain("src/pages/about/index.tsx");
+    expect(r.join()).not.toContain("old.css");
+  });
+});

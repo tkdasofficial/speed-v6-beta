@@ -1,4 +1,5 @@
 // AI orchestration: maps logical modes (speed/flash/heavy × quick/balanced/deep) to the configured model chains.
+import { conventionalPath } from "../../../sandbox/intelligence/validate";
 // Server-only. Model IDs, routing rules and provider keys never leave the Worker. Models are configured in ./models.ts.
 import { envStr } from "../context";
 import { chainFor, isNemotron, MAX_OUTPUT_TOKENS, PROVIDERS, type ModelTarget } from "./models";
@@ -240,7 +241,7 @@ const RULES = `RULES:
 7. Files you change are validated automatically at the end of the turn if you didn't run {"kind":"check"}; you only see that result next turn.
 8. Two project types. Static site (default): index.html at the root, relative paths, plain HTML/CSS/JS (ES modules via relative .js imports or full CDN URLs), no npm. React + Vite (when the user asks for React/TypeScript/Vite or package.json already lists vite): keep real React + TypeScript with package.json (react, react-dom, vite, @vitejs/plugin-react, typescript), vite.config.ts, tsconfig.json, root index.html loading /src/main.tsx and .tsx files under src/; create package.json and vite.config.ts first; npm imports are fine — a separate build runtime compiles it after your turn. Never convert a React/TypeScript request into a CDN or plain-JS site.
 9. New project? Create the files directly (still keep them small and linked correctly), then build.
-10. New React + Vite project structure: src/main.tsx, src/App.tsx, src/pages/<name>/index.tsx (one folder per page, e.g. pages/home, pages/landing), src/components/<Name>.tsx, ONE shared stylesheet src/styles/index.css (imported once in main.tsx), and src/assets, src/hooks, src/utils, src/types only when actually needed. No duplicate components, no per-component CSS files unless asked.
+10. New React + Vite project structure: src/main.tsx, src/App.tsx, src/pages/<name>/index.tsx (one folder per page, e.g. pages/home, pages/landing), src/components/<Name>.tsx, ONE shared stylesheet src/styles/index.css (imported once in main.tsx), and src/assets, src/hooks, src/utils, src/types only when actually needed. No duplicate components, no per-component CSS files unless asked. NEVER create src/styles.css, src/index.css, src/App.css or a page file directly in src/ or src/pages/ (src/pages/About.tsx is wrong; src/pages/about/index.tsx is right) — an automatic structure check refuses to finish until created files follow this. Applies to every NEW page in an existing project too; never reorganize existing files.
 11. Before editing, know exactly what must change, which file/component/function/rule is responsible, and what uses it. After changing a shared file, review the automatic impact check: check the listed users/imports, but leave them untouched when they are already correct.
 12. Reuse the project's existing design (colors, CSS variables, fonts, spacing, radius, shadows, buttons, cards, layout). Edit existing CSS rules in the shared stylesheet instead of adding new files. For UI changes, consider desktop, tablet and mobile; inspect the matching @media rules and fix only what is necessary.
 13. Group small related edits (same section) in one turn; keep unrelated or risky changes in separate turns. If an edit fails, the next turn uses the current file text shown in the results — never resend the same failed edit.
@@ -316,7 +317,7 @@ const PLAN_PROMPT = `You plan changes for a website project. Two project types: 
 Reply with ONLY one JSON object, no prose:
 {"type":"plan","title":"short title","summary":"1-2 sentences","create":["new file paths"],"modify":["existing file paths to change"],"pages":["pages/components/sections required"],"design":["design requirements"],"functional":["functional requirements"],"validation":["checks that prove the request is done"]}
 Any request to build, create, make, design or change something ALWAYS returns a plan — even for an empty project (then "create" lists every file to add, including package.json and vite.config.ts for React requests). Only reply {"type":"answer","answer":"..."} when the user asked a pure question that needs no file changes at all.
-Rules: base the plan on the real files shown; modify only files that exist; styling requests need a CSS file (or existing stylesheet) that is linked from the HTML; keep each list short (at most 8 items, each under 120 characters). React + Vite projects put index.html at the project ROOT (never public/index.html) and use src/main.tsx (never react-scripts / Create React App files).`;
+Rules: base the plan on the real files shown; modify only files that exist; styling requests need a CSS file (or existing stylesheet) that is linked from the HTML; keep each list short (at most 8 items, each under 120 characters). React + Vite projects put index.html at the project ROOT (never public/index.html) and use src/main.tsx (never react-scripts / Create React App files). New React pages go in src/pages/<name>/index.tsx (e.g. src/pages/home/index.tsx, never src/pages/HomePage.tsx), components in src/components/, and styling in the ONE shared stylesheet src/styles/index.css.`;
 
 const strs = (x: unknown) => (Array.isArray(x) ? x.filter((v): v is string => typeof v === "string" && !!v.trim()).map((v) => v.trim().slice(0, 200)).slice(0, 12) : []);
 
@@ -348,7 +349,7 @@ export async function createPlan(input: { model: AiModel; depth: AiDepth; projec
   const plan: AgentPlan = {
     title: typeof o["title"] === "string" ? o["title"].slice(0, 120) : "Implementation plan",
     summary: typeof o["summary"] === "string" ? o["summary"].slice(0, 600) : "",
-    create: strs(o["create"]), modify: strs(o["modify"]).filter((f) => input.files.includes(f)), pages: strs(o["pages"]),
+    create: [...new Set(strs(o["create"]).map((f) => (input.files.includes(f) ? f : conventionalPath(f))))], modify: strs(o["modify"]).filter((f) => input.files.includes(f)), pages: strs(o["pages"]),
     design: strs(o["design"]), functional: strs(o["functional"]), validation: strs(o["validation"]),
   };
   // A file the plan "modifies" that doesn't exist yet is really a creation.

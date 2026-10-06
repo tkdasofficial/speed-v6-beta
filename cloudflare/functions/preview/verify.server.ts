@@ -22,7 +22,7 @@ export async function readPreview(projectId: string, jobId: string): Promise<Pre
   if (!r) return null;
   if (r.status === "queued" || r.status === "running") return { done: false, status: r.status };
   let diag: PreviewDiag = { stage: r.status === "expired" ? "expired" : "unknown", error: r.status === "expired" ? "The preview check did not finish in time." : (r.output ?? "").slice(-1500) };
-  try { if (r.diagnostics) { const d = JSON.parse(r.diagnostics) as PreviewDiag; if (d && typeof d === "object" && !Array.isArray(d) && d.stage) diag = d; } } catch { /* keep fallback */ }
+  try { if (r.diagnostics) { const d = JSON.parse(r.diagnostics) as PreviewDiag; if (d && typeof d === "object" && !Array.isArray(d) && d.stage) diag = d.error ? d : { ...d, error: (r.output ?? "").slice(-1500) }; } } catch { /* keep fallback */ }
   let shots: (string | null)[] = [];
   try { shots = r.files ? (JSON.parse(r.files) as { data: string | null }[]).map((s) => s?.data ?? null) : []; } catch { shots = []; }
   return { done: true, status: r.status, diag, shots, output: r.output ?? "" };

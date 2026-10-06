@@ -251,7 +251,7 @@ export async function runAgentRound(input: { model: AiModel; depth: AiDepth; pla
   const approved = input.approvedPlan ? `APPROVED PLAN (implement all of it; every listed file must exist, be linked and contain the requested design/behaviour):\n${input.approvedPlan}\n` : "";
   const state = `${approved}Turn ${input.round + 1}. Project files (${input.files.length}): ${input.files.length ? input.files.join(", ") : "(empty project)"}\n${input.results ? `Results of your last actions:\n${input.results}` : "No actions run yet."}\nReply with the JSON object only.`;
   const messages: Msg[] = [{ role: "system", content: system }, ...input.history.slice(-d.history), { role: "user", content: state }];
-  const opts = { maxTokens: MAX_OUTPUT_TOKENS, think: d.think };
+  const opts = { maxTokens: MAX_OUTPUT_TOKENS, think: d.think, json: true };
   // An unparseable reply counts as a provider failure, so the chain moves to the next model.
   const [res, ok] = await Promise.all([callChain(chainFor(input.model), messages, opts, parseStep), safe]);
   if (!ok) return { message: "I can't help with that request.", actions: [] as AgentStepAction[], done: true, usedModel: usedLabel(res.used), fallbacks: res.failed };
@@ -278,7 +278,7 @@ export async function createPlan(input: { model: AiModel; depth: AiDepth; projec
     { role: "system", content: PLAN_PROMPT },
     { role: "user", content: `${ctx}\n\nRequest: ${input.prompt}${input.previous ? `\n\nCurrent plan:\n${JSON.stringify(input.previous)}\n\nThe user wants this changed in the plan: ${input.feedback ?? ""}\nReturn the full updated plan.` : ""}` },
   ];
-  const opts = { maxTokens: MAX_OUTPUT_TOKENS, think: false };
+  const opts = { maxTokens: MAX_OUTPUT_TOKENS, think: false, json: true };
   const parse = (t: string) => {
     const a = t.indexOf("{"), b = t.lastIndexOf("}");
     if (a < 0 || b <= a) return null;

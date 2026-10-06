@@ -27,7 +27,7 @@ type State = {
   ag?: { tasks: SubTask[]; batches: Batch[]; batchSteps: Record<string, string>; relevant?: string[] };
   finalSummaryStatus?: string;
   /** Visual preview verification (React/Vite): current runtime job, cycle count and the reported outcome. */
-  previewJob?: string | null; previewStartedAt?: number; visualAttempts?: number; preview?: string;
+  previewJob?: string | null; previewStartedAt?: number; visualAttempts?: number; preview?: string; previewWaits?: number;
 };
 type P = { prompt?: string; model?: "speed" | "flash" | "heavy"; depth?: "quick" | "balanced" | "deep"; plan?: boolean; clientMessageId?: string; parentRunId?: string };
 
@@ -491,12 +491,12 @@ async function previewStep(c: TaskContext, st: State, p: P): Promise<StepResult>
     });
     if (!s.ok) {
       // Another runtime job for this project may still be running: try again shortly, then report honestly.
-      if (/still running|already running/i.test(s.error ?? "") && (st.n = (st.n ?? 0) + 1) < 20) return { done: false, delayMs: 15_000 };
+      if (/still running|already running/i.test(s.error ?? "") && (st.previewWaits = (st.previewWaits ?? 0) + 1) < 20) return { done: false, delayMs: 15_000 };
       st.preview = `Not verified (${s.error ?? "preview check could not start"})`;
       const { store } = await (await import("../../sandbox/fs.server")).loadStore(pid);
       return complete(c, st, store);
     }
-    st.n = 0;
+    st.previewWaits = 0;
     st.previewJob = s.result as string; st.previewStartedAt = Date.now();
     return { done: false, delayMs: 30_000 };
   }

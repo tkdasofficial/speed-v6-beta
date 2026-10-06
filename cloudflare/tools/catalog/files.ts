@@ -81,8 +81,18 @@ export const fileTools = [
       const n = cur.split(a.find).length - 1;
       if (!n) throw new ToolFailure("INVALID_ARGUMENT", `Text not found in ${p} — read the file and copy the exact text`, false, undefined, "read_file");
       if (n > 1 && !a.all) throw new ToolFailure("CONFLICT", `Text appears ${n} times in ${p}; add context or set all=true`);
-      write(env, s, p, a.all ? cur.split(a.find).join(a.replace) : cur.replace(a.find, () => a.replace));
-      return { data: { path: p, replacements: a.all ? n : 1, diagnostics: validateFile(s, p).filter((d) => d.severity === "error").slice(0, 10) }, stateChanges: [{ kind: "file", target: p, detail: "updated" }] };
+      // A find-text that starts or ends inside a word (e.g. "Home" inside "Homeme") silently leaves the rest of the
+      // word behind and corrupts the code, so it is refused with the real surrounding line.
+      const at = cur.indexOf(a.find), W = /[\w$]/;
+      const cutsWord = (W.test(a.find[0]!) && at > 0 && W.test(cur[at - 1]!)) || (W.test(a.find.at(-1)!) && W.test(cur[at + a.find.length] ?? ""));
+      if (cutsWord && !a.all) {
+        const ls = cur.lastIndexOf("\n", at) + 1, le = cur.indexOf("\n", at + a.find.length);
+        throw new ToolFailure("INVALID_ARGUMENT", `Find-text cuts a word in half in ${p}. The full line is: ${JSON.stringify(cur.slice(ls, le < 0 ? undefined : le).slice(0, 300))} — use the whole word or line as find-text`);
+      }
+      const next = a.all ? cur.split(a.find).join(a.replace) : cur.replace(a.find, () => a.replace);
+      write(env, s, p, next);
+      const pos = next.indexOf(a.replace), from = next.lastIndexOf("\n", Math.max(0, pos) - 1) + 1, to = next.indexOf("\n", pos + a.replace.length);
+      return { data: { path: p, replacements: a.all ? n : 1, after: pos < 0 ? "" : next.slice(from, to < 0 ? undefined : to).slice(0, 600), diagnostics: validateFile(s, p).filter((d) => d.severity === "error").slice(0, 10) }, stateChanges: [{ kind: "file", target: p, detail: "updated" }] };
     },
   }),
   defineTool({

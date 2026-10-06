@@ -320,6 +320,9 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   }
   st.results = log.join("\n").slice(-12000);
   st.round = round + 1;
+  // A round that only re-runs a passing check has nothing left to do; continuing just burns AI calls.
+  const acts = step.actions as Step[];
+  if (!step.done && !wrote && built === true && acts.length > 0 && acts.every((a) => a.kind === "check" || (a.kind === "tool" && VERIFY.has(ALIASES[a.name ?? ""] ?? a.name ?? "")))) step.done = true;
   if (step.done && built !== false) {
     // A pure answer with no file work and nothing changed ends here; real builds go through validation.
     if (!st.mutated && !st.changed?.length) return end(c, st, "done", step.message || "Done. No files were changed.");
@@ -350,7 +353,9 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
     // Vite keeps index.html at the root, so a planned CRA-style public/index.html is satisfied by it.
     const exists = (f: string) => !!store.get(f) || (f === "public/index.html" && !!store.get("index.html"));
     for (const f of plan?.create ?? []) if (!exists(f)) issues.push(`Planned file ${f} was not created.`);
-    for (const f of plan?.modify ?? []) if (!store.get(f)) issues.push(`Planned file ${f} is missing.`); else if (!changed.has(f)) issues.push(`Planned change to ${f} was not made.`);
+    // A planned modification the agent judged unnecessary (file read, build passing) is not a failure: blocking on it
+    // made the fix loop re-read the same file until the run failed. Missing planned files still block.
+    for (const f of plan?.modify ?? []) if (!store.get(f)) issues.push(`Planned file ${f} is missing.`);
     if (!store.get("index.html") && store.list().some((f) => /\.html?$/.test(f.path))) issues.push("index.html is missing at the project root.");
     // Every stylesheet / script must be linked from some page, otherwise the requested design/behaviour never shows.
     const pages = store.list().filter((f) => /\.html?$/.test(f.path)).map((f) => f.content).join("\n");

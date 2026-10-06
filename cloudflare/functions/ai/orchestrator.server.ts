@@ -29,19 +29,22 @@ class ProviderError extends Error {}
 // A hung provider must surface as an error, never an endless "Thinking…".
 const FIRST_BYTE_MS = 170_000, IDLE_MS = 30_000;
 
-type CallOpts = { maxTokens: number; think: boolean; firstByteMs?: number };
+type CallOpts = { maxTokens: number; think: boolean; firstByteMs?: number; json?: boolean };
 
-/** Provider-specific request shaping (reasoning flags differ per provider). */
+/** Provider-specific request shaping (reasoning flags differ per provider). JSON mode only where the provider supports it. */
 function body(t: ModelTarget, messages: Msg[], o: CallOpts) {
+  const json = o.json ? { response_format: { type: "json_object" } } : {};
   if (isNemotron(t)) {
     const msgs = messages.map((m, i) => (i === 0 && m.role === "system" ? { ...m, content: `${m.content} ${o.think ? "/think" : "/no_think"}` } : m));
     return { model: t.id, messages: msgs, max_tokens: o.maxTokens, stream: true, chat_template_kwargs: { enable_thinking: o.think }, ...(o.think ? {} : { temperature: 0.3 }) };
   }
-  if (t.provider === "groq") return { model: t.id, messages, max_tokens: o.maxTokens, stream: true, reasoning_effort: o.think ? "medium" : "low" };
-  return { model: t.id, messages, max_tokens: o.maxTokens, stream: true };
+  if (t.provider === "groq") return { model: t.id, messages, max_tokens: o.maxTokens, stream: true, reasoning_effort: o.think ? "medium" : "low", ...json };
+  return { model: t.id, messages, max_tokens: o.maxTokens, stream: true, ...json };
 }
 
-async function call(t: ModelTarget, messages: Msg[], opts: CallOpts) {
+type CallResult = { text: string; finish: string };
+
+async function callRaw(t: ModelTarget, messages: Msg[], opts: CallOpts): Promise<CallResult> {
   const key = envStr(PROVIDERS[t.provider].secret);
   if (!key) throw new ProviderError(`${t.provider} is not configured`);
   const ctl = new AbortController();
@@ -61,11 +64,11 @@ async function call(t: ModelTarget, messages: Msg[], opts: CallOpts) {
   }
   if (!res.ok) {
     clearTimeout(timer);
-    await res.body?.cancel().catch(() => undefined);
-    throw new ProviderError(`HTTP ${res.status}`);
+    const detail = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160);
+    throw new ProviderError(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
   }
   // Streamed server-side so long generations never hit idle timeouts; only final text is kept.
-  let out = "", buf = "";
+  let out = "", buf = "", finish = "";
   const reader = res.body!.getReader();
   const dec = new TextDecoder();
   for (;;) {
@@ -80,31 +83,50 @@ async function call(t: ModelTarget, messages: Msg[], opts: CallOpts) {
     for (const l of lines) {
       const s = l.trim();
       if (!s.startsWith("data:") || s === "data: [DONE]") continue;
-      try { out += (JSON.parse(s.slice(5)) as { choices?: { delta?: { content?: string | null } }[] }).choices?.[0]?.delta?.content ?? ""; } catch { /* partial */ }
+      try {
+        const c = (JSON.parse(s.slice(5)) as { choices?: { delta?: { content?: string | null }; finish_reason?: string | null }[] }).choices?.[0];
+        out += c?.delta?.content ?? "";
+        if (c?.finish_reason) finish = c.finish_reason;
+      } catch { /* partial */ }
     }
   }
-  return out.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  return { text: out.replace(/<think>[\s\S]*?<\/think>/g, "").trim(), finish };
+}
+
+async function call(t: ModelTarget, messages: Msg[], opts: CallOpts) {
+  return (await callRaw(t, messages, opts)).text;
 }
 
 export type ChainResult<T> = { value: T; text: string; used: ModelTarget; failed: { model: string; reason: string }[] };
 
+const CUT_OFF = "Your previous reply was cut off before the JSON ended. Reply again with the complete JSON object only, using at most 3 actions and keeping each file short (split big files across turns).";
+
 /**
  * Runs the role's chain: primary, then the common fallbacks in order. Moves on only on a real provider failure
- * or a response `accept` rejects; never loops back. All failing → one clear AiError.
+ * or a response `accept` rejects; never loops back. A reply cut off at the output limit gets one shorter retry
+ * on the same model first. All failing → one clear AiError with per-model reasons.
  */
 async function callChain<T>(chain: ModelTarget[], messages: Msg[], opts: CallOpts, accept: (text: string) => T | null): Promise<ChainResult<T>> {
   const failed: { model: string; reason: string }[] = [];
   for (const t of chain) {
     try {
-      const text = await call(t, messages, opts);
-      const value = text ? accept(text) : null;
-      if (value === null) throw new ProviderError("invalid or empty response");
+      let r = await callRaw(t, messages, opts);
+      let value = r.text ? accept(r.text) : null;
+      if (value === null && r.finish === "length") {
+        console.warn(`[ai] ${t.provider}/${t.id} hit the output limit (${r.text.length} chars); retrying shorter`);
+        r = await callRaw(t, [...messages, { role: "user", content: CUT_OFF }], opts);
+        value = r.text ? accept(r.text) : null;
+      }
+      if (value === null) {
+        const why = !r.text ? "empty response" : r.finish === "length" ? "reply cut off at output limit" : "reply was not valid JSON";
+        throw new ProviderError(`${why} (finish=${r.finish || "none"}, ${r.text.length} chars, start=${JSON.stringify(r.text.slice(0, 80))}, end=${JSON.stringify(r.text.slice(-80))})`);
+      }
       if (failed.length) console.warn(`[ai] fell back to ${t.provider}/${t.id} after: ${failed.map((f) => `${f.model} (${f.reason})`).join(", ")}`);
-      return { value, text, used: t, failed };
+      return { value, text: r.text, used: t, failed };
     } catch (e) {
       if (!(e instanceof ProviderError)) throw e;
       console.error(`[ai] ${t.provider}/${t.id} failed: ${e.message}`);
-      failed.push({ model: `${t.provider}/${t.id}`, reason: e.message });
+      failed.push({ model: `${t.provider}/${t.id}`, reason: e.message.slice(0, 400) });
     }
   }
   console.error(`[ai] all models failed: ${failed.map((f) => `${f.model} (${f.reason})`).join(", ")}`);
@@ -229,7 +251,7 @@ export async function runAgentRound(input: { model: AiModel; depth: AiDepth; pla
   const approved = input.approvedPlan ? `APPROVED PLAN (implement all of it; every listed file must exist, be linked and contain the requested design/behaviour):\n${input.approvedPlan}\n` : "";
   const state = `${approved}Turn ${input.round + 1}. Project files (${input.files.length}): ${input.files.length ? input.files.join(", ") : "(empty project)"}\n${input.results ? `Results of your last actions:\n${input.results}` : "No actions run yet."}\nReply with the JSON object only.`;
   const messages: Msg[] = [{ role: "system", content: system }, ...input.history.slice(-d.history), { role: "user", content: state }];
-  const opts = { maxTokens: MAX_OUTPUT_TOKENS, think: d.think };
+  const opts = { maxTokens: MAX_OUTPUT_TOKENS, think: d.think, json: true };
   // An unparseable reply counts as a provider failure, so the chain moves to the next model.
   const [res, ok] = await Promise.all([callChain(chainFor(input.model), messages, opts, parseStep), safe]);
   if (!ok) return { message: "I can't help with that request.", actions: [] as AgentStepAction[], done: true, usedModel: usedLabel(res.used), fallbacks: res.failed };
@@ -256,7 +278,7 @@ export async function createPlan(input: { model: AiModel; depth: AiDepth; projec
     { role: "system", content: PLAN_PROMPT },
     { role: "user", content: `${ctx}\n\nRequest: ${input.prompt}${input.previous ? `\n\nCurrent plan:\n${JSON.stringify(input.previous)}\n\nThe user wants this changed in the plan: ${input.feedback ?? ""}\nReturn the full updated plan.` : ""}` },
   ];
-  const opts = { maxTokens: MAX_OUTPUT_TOKENS, think: false };
+  const opts = { maxTokens: MAX_OUTPUT_TOKENS, think: false, json: true };
   const parse = (t: string) => {
     const a = t.indexOf("{"), b = t.lastIndexOf("}");
     if (a < 0 || b <= a) return null;

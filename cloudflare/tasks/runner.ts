@@ -73,7 +73,8 @@ export class TaskRunner {
         await S.patchTask(taskId, { status: "retrying", state, retry_count: task.retry_count + 1, error: msg.slice(0, 500) });
         return delay;
       }
-      await S.addEvent(task, "failed", { error: msg.slice(0, 500) });
+      const failed = (e as { failed?: unknown }).failed;
+      await S.addEvent(task, "failed", { error: msg.slice(0, 500), ...(Array.isArray(failed) && failed.length ? { failed } : {}) });
       await S.patchTask(taskId, { status: "failed", state, error: msg.slice(0, 500), completed: true });
       return null;
     }

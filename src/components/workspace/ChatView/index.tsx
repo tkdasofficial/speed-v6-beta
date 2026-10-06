@@ -6,6 +6,7 @@ import { ChatInput } from "@/components/ChatInput";
 import type { ChatItem } from "@/lib/workspace-types";
 import type { AgentPlan } from "@/lib/workspace";
 import { PlanCard } from "@/components/workspace/PlanCard";
+import { Markdown } from "@/components/Markdown";
 
 export function ChatView({ header, items, onSend, onRollback, onStop, activeStep, plan, onPlanDecision }: { header?: React.ReactNode; plan?: { plan: AgentPlan; version: number } | undefined; onPlanDecision?: ((d: "approve" | "deny" | "edit", feedback?: string) => Promise<void>) | undefined; activeStep?: string | null | undefined; items: ChatItem[]; onSend: (text: string) => Promise<void> | void; onRollback?: (snapshotId: string) => void; onStop?: () => void }) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -54,16 +55,16 @@ export function ChatView({ header, items, onSend, onRollback, onStop, activeStep
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div ref={scroller} onScroll={onScroll} className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div ref={scroller} onScroll={onScroll} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
         {items.length === 0 && !header ? <EmptyChat /> : (
-          <div className="mx-auto grid w-full min-w-0 max-w-2xl gap-3 px-4 pb-6 pt-4">
+          <div className="mx-auto grid w-full min-w-0 max-w-2xl grid-cols-[minmax(0,1fr)] gap-3 px-4 pb-6 pt-4">
             {header}
             {items.map((item) => <Item key={item.id} item={item} onRollback={onRollback} />)}
             {(busy || activeStep) && <Item item={{ id: "thinking", type: "status", text: activeStep ? `${activeStep}…` : "Starting…", state: "running" }} />}
             {failed && !busy && (
-              <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-destructive">
-                <XCircle className="!h-4 !w-4" /> {failed.error}
-                <button type="button" onClick={() => void send(failed.text)} className="h-7 rounded-[6px] border border-border px-2.5 text-foreground">Retry</button>
+              <div title={failed.error} className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-destructive">
+                <XCircle className="!h-4 !w-4 shrink-0" /> <span className="min-w-0 truncate">{failed.error}</span>
+                <button type="button" onClick={() => void send(failed.text)} className="ml-auto h-7 shrink-0 rounded-[6px] border border-border px-2.5 text-foreground">Retry</button>
               </div>
             )}
           </div>
@@ -88,20 +89,20 @@ function Item({ item, onRollback }: { item: ChatItem; onRollback?: ((snapshotId:
   switch (item.type) {
     case "user":
       return (
-        <div className="grid justify-items-end gap-1">
-          <div className="max-w-[85%] whitespace-pre-wrap rounded-[16px] rounded-br-[6px] bg-primary px-4 py-2.5 shadow-[0_16px_40px_-22px_var(--primary)] text-[15px] leading-6 text-primary-foreground">{item.text}</div>
+        <div className="grid min-w-0 justify-items-end gap-1">
+          <div className="max-w-[85%] min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-[16px] rounded-br-[6px] bg-primary px-4 py-2.5 shadow-[0_16px_40px_-22px_var(--primary)] text-[15px] leading-6 text-primary-foreground">{item.text}</div>
           <span className="text-[11px] text-muted-foreground">{item.time}</span>
         </div>
       );
     case "ai":
-      return <p className="m-0 text-[15px] leading-6 text-foreground">{item.text}</p>;
+      return <div className="min-w-0"><Markdown text={item.text} /></div>;
     case "actions":
       return <ActionGroup actions={item.actions} />;
     case "status": {
       const Icon = item.state === "running" ? Loader2 : item.state === "failed" ? XCircle : Clock;
       return (
-        <div className={`flex items-center gap-2 text-[13px] font-medium ${item.state === "running" ? "text-foreground/85" : item.state === "failed" ? "text-destructive" : "text-muted-foreground"}`}>
-          <Icon className={`!h-4 !w-4 ${item.state === "running" ? "animate-spin" : ""}`} /> {item.text}
+        <div title={item.text} className={`flex min-w-0 items-center gap-2 text-[13px] font-medium ${item.state === "running" ? "text-foreground/85" : item.state === "failed" ? "text-destructive" : "text-muted-foreground"}`}>
+          <Icon className={`!h-4 !w-4 shrink-0 ${item.state === "running" ? "animate-spin" : ""}`} /> <span className="min-w-0 truncate">{item.text}</span>
         </div>
       );
     }

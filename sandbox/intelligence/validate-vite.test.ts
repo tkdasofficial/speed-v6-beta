@@ -49,4 +49,13 @@ describe("vite relative imports", () => {
     const good = store({ ...base, "src/Footer.tsx": "type P = { year?: number };\nexport default function Footer({ year }: P) {\n  return (<footer>{year ?? 2026}</footer>);\n}\n" });
     expect(validateProject(good).errors).toHaveLength(0);
   });
+
+  it("flags names that can never resolve (blank page in the browser)", () => {
+    const base = { "package.json": '{"dependencies":{"vite":"5"}}', "index.html": '<script type="module" src="/src/main.tsx"></script>', "src/main.tsx": "import Home from './Home';\nimport { Card } from './Card';\nconst x = <><Home /><Card /></>;\nconsole.log(x);\n", "src/Card.tsx": "export function Card({ title }: { title?: string }) { const Icon = () => null; return <div><Icon />{title}</div>; }\n" };
+    const bad = store({ ...base, "src/Home.tsx": "const Home = () => <Homeme />;\nexport default Home;mememe;\n" });
+    const e = validateProject(bad).errors.filter((x) => x.code === "UNDEFINED_NAME").map((x) => x.message.split(" ")[0]);
+    expect(e.sort()).toEqual(["Homeme", "mememe"]);
+    const good = store({ ...base, "src/Home.tsx": "const Home = () => <div>Hi</div>;\nexport default Home;\n" });
+    expect(validateProject(good).errors).toHaveLength(0);
+  });
 });

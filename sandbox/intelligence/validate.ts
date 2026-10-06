@@ -78,12 +78,53 @@ export function validateJson(file: string, text: string): Diagnostic[] {
 export function validateTsxSyntax(file: string, code: string): Diagnostic[] {
   try {
     const out = transform(code, { transforms: /\.tsx?$/i.test(file) ? ["typescript", "jsx"] : ["jsx"], production: true, filePath: file }).code;
-    parse(out, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true });
-    return [];
+    const ast = parse(out, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true, locations: true });
+    return undefinedNames(file, ast as unknown as AstNode);
   } catch (e) {
     const err = e as { message: string; loc?: { line: number; column: number } };
     return [d({ type: "syntax_error", file, line: err.loc?.line ?? 1, column: (err.loc?.column ?? 0) + 1, message: err.message.replace(/\s*\(\d+:\d+\)$/, ""), code: "TS_SYNTAX_ERROR" })];
   }
+}
+
+type AstNode = { type: string; [k: string]: unknown; loc?: { start: { line: number; column: number } } };
+const JS_GLOBALS = new Set(["React", "undefined", "NaN", "Infinity", "globalThis", "window", "document", "console", "JSON", "Math", "Object", "Array", "String", "Number", "Boolean", "Symbol", "Promise", "Date", "Error", "Map", "Set", "Intl", "URL", "Fragment"]);
+/** Names that can never resolve (the browser throws "X is not defined"): bare top-level expression statements and
+ *  JSX component tags with no binding anywhere in the module. Every binding in any scope counts, so this never
+ *  flags a valid name; it catches leftovers like `export default Home;mememe;` and `<Homeme />`. */
+function undefinedNames(file: string, ast: AstNode): Diagnostic[] {
+  const bound = new Set<string>();
+  const used: { name: string; node: AstNode }[] = [];
+  const bind = (n: unknown): void => {
+    const x = n as AstNode | null;
+    if (!x) return;
+    if (x.type === "Identifier") bound.add(x["name"] as string);
+    else if (x.type === "ObjectPattern") for (const p of x["properties"] as AstNode[]) bind(p.type === "RestElement" ? p["argument"] : p["value"]);
+    else if (x.type === "ArrayPattern") for (const e of x["elements"] as AstNode[]) bind(e);
+    else if (x.type === "AssignmentPattern") bind(x["left"]);
+    else if (x.type === "RestElement") bind(x["argument"]);
+  };
+  const walk = (n: unknown, top: boolean): void => {
+    if (!n || typeof n !== "object") return;
+    if (Array.isArray(n)) { for (const c of n) walk(c, top); return; }
+    const x = n as AstNode;
+    switch (x.type) {
+      case "ImportSpecifier": case "ImportDefaultSpecifier": case "ImportNamespaceSpecifier": bind(x["local"]); break;
+      case "VariableDeclarator": bind(x["id"]); break;
+      case "FunctionDeclaration": case "FunctionExpression": case "ClassDeclaration": case "ClassExpression": bind(x["id"]); break;
+      case "CatchClause": bind(x["param"]); break;
+      case "ExpressionStatement": if (top && (x["expression"] as AstNode).type === "Identifier") used.push({ name: (x["expression"] as AstNode)["name"] as string, node: x }); break;
+      case "CallExpression": {
+        const callee = x["callee"] as AstNode, arg = (x["arguments"] as AstNode[])[0];
+        const isCreate = (callee.type === "MemberExpression" && (callee["property"] as AstNode)["name"] === "createElement") || (callee.type === "Identifier" && /^_?jsxs?$|^_jsxDEV$/.test(callee["name"] as string));
+        if (isCreate && arg?.type === "Identifier" && /^[A-Z]/.test(arg["name"] as string)) used.push({ name: arg["name"] as string, node: arg });
+        break;
+      }
+    }
+    if ("params" in x) for (const p of x["params"] as AstNode[]) bind(p);
+    for (const k of Object.keys(x)) if (k !== "loc" && typeof x[k] === "object") walk(x[k], top && x.type === "Program" && k === "body");
+  };
+  walk(ast, true);
+  return used.filter((u) => !bound.has(u.name) && !JS_GLOBALS.has(u.name)).slice(0, 5).map((u) => d({ type: "syntax_error", file, line: u.node.loc?.start.line ?? 1, column: (u.node.loc?.start.column ?? 0) + 1, message: `${u.name} is not defined — the page crashes with "ReferenceError: ${u.name} is not defined"`, code: "UNDEFINED_NAME" }));
 }
 
 export function validateTs(file: string): Diagnostic[] {

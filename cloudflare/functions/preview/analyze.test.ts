@@ -30,3 +30,9 @@ describe("vision verdict parsing", () => {
   it("low-severity or unsure FAIL does not block", () => expect(visionBlocks(parseVerdict('{"status":"FAIL","severity":"low","confidence":0.9}')!)).toBe(false));
   it("rejects garbage", () => expect(parseVerdict("looks fine")).toBeNull());
 });
+
+it("npm install failure from package.json is a code defect, not unverifiable", () => {
+  const v = deterministicVerdict({ stage: "unknown", views: [], error: "npm error code ETARGET\nnpm error notarget No matching version found for @types/react-router-dom@^6.0.0." }) as { status: string; suggestedFiles: string[] };
+  expect(v.status).toBe("FAIL");
+  expect(v.suggestedFiles).toContain("package.json");
+});

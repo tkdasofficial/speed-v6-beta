@@ -270,6 +270,11 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
     const r = await act(c, st, { kind: L.kind, running: L.running, done: L.done, failed: L.failed, round }, async () => {
       const res = await ar.tool(sess, name, args, { stepId: rid, batchId });
       log.push(fmt(res));
+      // A failed find/replace gets the file's real current text, so the next round can copy it instead of guessing.
+      if (!res.success && res.toolName === "update_file" && typeof args["path"] === "string") {
+        const cur = await ar.tool(sess, "read_file", { path: args["path"] }, { stepId: rid, batchId }).catch(() => null);
+        if (cur?.success) log.push(`(automatic, current content of ${args["path"] as string}) ${fmt(cur)}`);
+      }
       const ok = VERIFY.has(res.toolName) ? verifyOk(res) : res.success;
       return ok ? { ok: true } : { ok: false, error: (res.error?.message ?? fmt(res)).slice(0, 600) };
     });
@@ -319,6 +324,14 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
     return end(c, st, "failed", `Not finished. The project check still fails after ${MAX_REPAIRS} repair attempts:\n\n${log.filter((l) => /error/i.test(l)).slice(-1)[0]?.slice(0, 800) ?? "see the failed steps above."}`, `Stopped after ${MAX_REPAIRS} failed repair attempts.`);
   }
   st.results = log.join("\n").slice(-12000);
+  if (built === false) {
+    // A failed check only shows a few lines around each error; the real cause of an "Unexpected token" is often far
+    // above it. Attach the current text of the failing files (saved revision) so the repair edits exact lines.
+    const bad = [...new Set([...log.join("\n").matchAll(/"file":"([^"]+)"/g)].map((m) => m[1]!))].slice(0, 2);
+    const { store: now } = await fs.loadStore(pid);
+    const attached = bad.map((f) => now.get(f)).filter((f): f is NonNullable<typeof f> => !!f && f.encoding === "utf8").map((f) => `--- ${f.path} (current content, numbered)\n${f.content.split("\n").map((l, i) => `${i + 1}| ${l}`).join("\n").slice(0, 7000)}`);
+    if (attached.length) st.results = `${st.results.slice(-5000)}\nFix the check errors above. Current text of the failing files is below — copy find-text exactly (without the line numbers), or rewrite a short broken file completely with "content".\n${attached.join("\n")}`;
+  }
   st.round = round + 1;
   // A round that only re-runs a passing check has nothing left to do; continuing just burns AI calls.
   const acts = step.actions as Step[];
@@ -429,8 +442,12 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
   }
   // Automatic fix: back to Thinking → Action with the real failures, then validate again.
   st.phase = "building";
-  st.results = `VALIDATION FAILED (fix attempt ${st.fixAttempts}/${MAX_FIX_ATTEMPTS}). Fix exactly these problems with targeted edits, then set done:\n${issues.map((i) => `- ${i}`).join("\n")}`;
-  st.round = Math.min(st.round ?? 0, MAX_ROUNDS - 2);
+  // The files named in the problems are attached verbatim: without them the model guessed find-text, every edit
+  // failed with "Text not found", and the two-round fix budget ran out on re-reads.
+  const named = [...new Set(issues.join("\n").match(/[\w@.\/-]+\.(?:tsx?|jsx?|css|html?|json)\b/g) ?? [])].filter((f) => store.get(f)).slice(0, 4);
+  const attached = named.map((f) => `--- ${f} (current content)\n${store.get(f)!.content.slice(0, 3000)}`).join("\n");
+  st.results = `VALIDATION FAILED (fix attempt ${st.fixAttempts}/${MAX_FIX_ATTEMPTS}). Fix exactly these problems with targeted edits (copy find-text exactly from the contents below, or rewrite the file with "content"), then set done:\n${issues.map((i) => `- ${i}`).join("\n")}${attached ? `\n${attached}` : ""}`;
+  st.round = Math.min(st.round ?? 0, MAX_ROUNDS - 4);
   await phase(c, "building");
   return { done: false, delayMs: 10 };
 }

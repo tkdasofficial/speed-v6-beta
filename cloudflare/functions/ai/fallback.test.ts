@@ -51,7 +51,7 @@ describe("server-side model fallback", () => {
     expect(r.message).toBe("ok");
   });
 
-  it("malformed JSON moves to the next provider; a refused key is skipped on later calls", async () => {
+  it("a prose reply gets one JSON reminder, then moves to the next provider; a refused key is skipped on later calls", async () => {
     const seen: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
       const b = JSON.parse(String(init.body));
@@ -61,9 +61,29 @@ describe("server-side model fallback", () => {
       return sse('{"message":"from gemini","actions":[],"done":true}');
     }));
     expect((await round()).message).toBe("from gemini");
-    expect(seen).toEqual(["groq", "nvidia", "gemini"]);
+    expect(seen).toEqual(["groq", "groq", "nvidia", "gemini"]);
     seen.length = 0;
     await round();
-    expect(seen).toEqual(["groq", "gemini"]);
+    expect(seen).toEqual(["groq", "groq", "gemini"]);
+  });
+
+  it("a prose reply that becomes JSON after the reminder stays on the same provider", async () => {
+    let n = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => (n++ === 0 ? sse("I'll read the file first.") : sse('{"message":"ok","actions":[],"done":true}'))));
+    expect((await round()).message).toBe("ok");
+    expect(n).toBe(2);
+  });
+
+  it("a mid-stream error frame is reported with its real reason, not as an empty reply", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response('data: {"error":{"code":"json_validate_failed","message":"Failed to generate JSON"}}\n\n', { headers: { "content-type": "text/event-stream" } })));
+    const e = await round().catch((x) => x);
+    expect(JSON.stringify(e.failed)).toMatch(/json_validate_failed/);
+  });
+});
+
+describe("step parsing", () => {
+  it("takes the first step when a model sends several JSON objects back to back", async () => {
+    const { firstJsonObject } = await import("./orchestrator.server");
+    expect(firstJsonObject('{"message":"a }{ b","actions":[]}, {"message":"next"}')).toBe('{"message":"a }{ b","actions":[]}');
   });
 });

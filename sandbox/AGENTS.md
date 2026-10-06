@@ -4,3 +4,4 @@
 - Preview renders only the last successful /sandbox/.output generation; failed generations never replace it.
 - The agent's internal tools live in `sandbox/intelligence/` (search, deps, validate, errors, changes, tools); every agent file action goes through `AgentTools` so edits are boundary-checked, tracked and syntax-validated, and builds are transactional (validate → stage → verify → swap .output).
 - In the app, the browser Sandbox is only a cache/preview mirror of the server codebase (`src/lib/workspace/server-sync.ts`): it loads from and sends edits to the server, and device-only files are uploaded once then dropped.
+- React + Vite projects are checked before success with a TSX syntax pass (sucrase → acorn) and resolution of every relative import (`validateViteImports`), so the agent never reports a build the real Vite build would reject.

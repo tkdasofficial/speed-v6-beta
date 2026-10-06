@@ -29,3 +29,24 @@ describe("project type rules", () => {
     expect(validateProject(s).errors.map((e) => e.code)).toContain("TS_NOT_SUPPORTED");
   });
 });
+
+describe("vite relative imports", () => {
+  it("flags a side-effect CSS import that points outside src (the real failing build)", () => {
+    const bad = store({ "package.json": '{"dependencies":{"vite":"5"}}', "index.html": '<script type="module" src="/src/main.tsx"></script>', "src/main.tsx": "import './App';\nimport '../styles/global.css';\n", "src/App.tsx": "export default 1;", "src/styles/global.css": "body{}" });
+    const e = validateProject(bad).errors.filter((x) => x.code === "IMPORT_NOT_FOUND");
+    expect(e).toHaveLength(1);
+    expect(e[0]!.message).toMatch(/src\/styles\/global\.css/);
+    const good = store({ "package.json": '{"dependencies":{"vite":"5"}}', "index.html": '<script type="module" src="/src/main.tsx"></script>', "src/main.tsx": "import './App';\nimport './styles/global.css';\n", "src/App.tsx": "export default 1;", "src/styles/global.css": "body{}" });
+    expect(validateProject(good).errors.filter((x) => x.code === "IMPORT_NOT_FOUND")).toHaveLength(0);
+  });
+
+  it("flags a TSX syntax error such as a stray closing brace (the second real failing build)", () => {
+    const base = { "package.json": '{"dependencies":{"vite":"5"}}', "index.html": '<script type="module" src="/src/main.tsx"></script>', "src/main.tsx": "import Footer from './Footer';\nconsole.log(Footer);\n" };
+    const bad = store({ ...base, "src/Footer.tsx": "export default function Footer() {\n  return (<footer>hi</footer>);\n}\n};\n" });
+    const e = validateProject(bad).errors.filter((x) => x.code === "TS_SYNTAX_ERROR");
+    expect(e).toHaveLength(1);
+    expect(e[0]).toMatchObject({ file: "src/Footer.tsx", line: 4 });
+    const good = store({ ...base, "src/Footer.tsx": "type P = { year?: number };\nexport default function Footer({ year }: P) {\n  return (<footer>{year ?? 2026}</footer>);\n}\n" });
+    expect(validateProject(good).errors).toHaveLength(0);
+  });
+});

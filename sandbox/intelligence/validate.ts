@@ -1,5 +1,6 @@
 // Static validation of .local files. Returns structured diagnostics with errors and warnings separated.
 import { parse } from "acorn";
+import { transform } from "sucrase";
 import type { FileStore } from "../types/filesystem";
 import { analyzeFile } from "./deps";
 import { classify } from "./errors";
@@ -69,6 +70,19 @@ export function validateJson(file: string, text: string): Diagnostic[] {
   catch (e) {
     const pos = Number(/position (\d+)/.exec((e as Error).message)?.[1] ?? 0);
     return [d({ type: "syntax_error", file, ...lineCol(text, pos), message: (e as Error).message, code: "JSON_SYNTAX_ERROR" })];
+  }
+}
+
+/** Syntax check for .ts/.tsx/.jsx in Vite projects: the build runtime fails the whole build on one syntax error
+ *  (e.g. a stray `};`), so catch it before the agent reports success. Types are not checked, only syntax. */
+export function validateTsxSyntax(file: string, code: string): Diagnostic[] {
+  try {
+    const out = transform(code, { transforms: /\.tsx?$/i.test(file) ? ["typescript", "jsx"] : ["jsx"], production: true, filePath: file }).code;
+    parse(out, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true });
+    return [];
+  } catch (e) {
+    const err = e as { message: string; loc?: { line: number; column: number } };
+    return [d({ type: "syntax_error", file, line: err.loc?.line ?? 1, column: (err.loc?.column ?? 0) + 1, message: err.message.replace(/\s*\(\d+:\d+\)$/, ""), code: "TS_SYNTAX_ERROR" })];
   }
 }
 
@@ -159,13 +173,40 @@ export function validateViteExports(store: FileStore): Diagnostic[] {
   return out;
 }
 
+/** Vite resolves every relative import (including side-effect `import "./x.css"`) at build time; one missing file
+ *  fails the whole build. The reference scan didn't cover side-effect imports in .tsx, so check them all here. */
+export function validateViteImports(store: FileStore): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const src = store.list().filter((f) => /\.(tsx?|jsx?|mjs)$/.test(f.path) && !/\.d\.ts$/.test(f.path) && f.encoding !== "base64");
+  for (const f of src) {
+    const dir = f.path.includes("/") ? f.path.slice(0, f.path.lastIndexOf("/")) : "";
+    const code = f.content.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " ")).replace(/(^|[^:])\/\/.*$/gm, "$1");
+    for (const m of code.matchAll(/(?:^|[;\n])\s*(?:import\s+(?:[^;"']*?\s+from\s+)?|export\s+[^;"']*?\s+from\s+)["'](\.{1,2}\/[^"'?#]+)["']/g)) {
+      const ref = m[1]!;
+      const parts: string[] = []; let escaped = false;
+      for (const seg of (dir ? dir + "/" + ref : ref).split("/")) { if (seg === "..") { if (!parts.length) escaped = true; parts.pop(); } else if (seg !== "." && seg) parts.push(seg); }
+      const base = parts.join("/");
+      const found = !escaped && (store.get(base) || VITE_EXT.some((e) => store.get(base.replace(/\.(m?js|jsx)$/, "") + e)));
+      if (found) continue;
+      const line = code.slice(0, m.index).split("\n").length;
+      const name = base.split("/").pop() ?? ref;
+      const near = store.list().find((x) => x.path.endsWith("/" + name) || x.path === name)?.path;
+      out.push(d({ type: "broken_import", file: f.path, line, column: 1, message: `Could not resolve "${ref}" from ${f.path}${escaped ? " (the path goes above the project root)" : ""}${near ? ` — the file is at ${near}` : ""}`, code: "IMPORT_NOT_FOUND", related: near ? [near] : [] }));
+    }
+  }
+  return out;
+}
+
 /** Whole-project validation: syntax per file, paths, references, entry point. Enriched with cause/context. */
 export function validateProject(store: FileStore): { errors: Diagnostic[]; warnings: Diagnostic[] } {
   const all: Diagnostic[] = [];
   if (!store.get("index.html")) all.push(d({ type: store.get("package.json") ? "build_configuration_error" : "missing_file", file: "index.html", line: 1, column: 1, message: store.get("package.json") ? "This project needs a build runtime (package.json, no index.html) — build runtimes aren't connected" : "No index.html at the project root", code: "BUILD_NO_ENTRY" }));
   const vite = isViteProject(store);
-  for (const f of store.list()) all.push(...validateFile(store, f.path), ...(!vite && /\.tsx?$/i.test(f.path) && !/\.d\.ts$/i.test(f.path) ? validateTs(f.path) : []));
-  all.push(...validatePaths(store), ...validateReferences(store), ...(vite ? validateViteExports(store) : []));
+  for (const f of store.list()) {
+    const tsx = /\.(tsx?|jsx)$/i.test(f.path) && !/\.d\.ts$/i.test(f.path) && f.encoding !== "base64";
+    all.push(...validateFile(store, f.path), ...(tsx && !vite && !/\.jsx$/i.test(f.path) ? validateTs(f.path) : []), ...(tsx && vite ? validateTsxSyntax(f.path, f.content) : []));
+  }
+  all.push(...validatePaths(store), ...validateReferences(store), ...(vite ? [...validateViteExports(store), ...validateViteImports(store)] : []));
   const enriched = all.map((x) => classify(store, x));
   return { errors: enriched.filter((x) => x.severity === "error"), warnings: enriched.filter((x) => x.severity === "warning") };
 }

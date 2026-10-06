@@ -1,4 +1,5 @@
 import type React from "react";
+import "@/style/Markdown/index.css";
 
 // Lightweight, dependency-free Markdown for AI replies: headings, paragraphs, lists, quotes, code blocks, tables,
 // inline code/bold/italic/links. Everything wraps inside its container; only code blocks and tables scroll

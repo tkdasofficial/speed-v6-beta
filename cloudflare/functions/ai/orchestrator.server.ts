@@ -19,7 +19,10 @@ const DEPTH: Record<AiDepth, { history: number; maxTokens: number; think: boolea
   deep: { history: 30, maxTokens: MAX_OUTPUT_TOKENS, think: true, verify: true, guide: "Plan thoroughly step by step, consider edge cases, then give a complete, carefully verified answer." },
 };
 
-export class AiError extends Error {}
+export class AiError extends Error {
+  /** Per-model failure reasons (internal; recorded on the task event, never shown as provider IDs in the UI). */
+  failed: { model: string; reason: string }[] = [];
+}
 /** A real provider failure (rate limit, timeout, 5xx, outage, connection, bad response): the chain moves to the next model. */
 class ProviderError extends Error {}
 
@@ -104,7 +107,10 @@ async function callChain<T>(chain: ModelTarget[], messages: Msg[], opts: CallOpt
       failed.push({ model: `${t.provider}/${t.id}`, reason: e.message });
     }
   }
-  throw new AiError("All AI models are unavailable right now. Try again in a moment.");
+  console.error(`[ai] all models failed: ${failed.map((f) => `${f.model} (${f.reason})`).join(", ")}`);
+  const err = new AiError("All AI models are unavailable right now. Try again in a moment.");
+  err.failed = failed;
+  throw err;
 }
 
 const usedLabel = (t: ModelTarget) => `${t.provider}/${t.id}`;

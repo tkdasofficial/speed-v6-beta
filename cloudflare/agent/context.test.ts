@@ -63,3 +63,14 @@ describe("use before init", () => {
     expect(ok.filter((x) => x.code === "USE_BEFORE_INIT")).toEqual([]);
   });
 });
+
+import { fixUseBeforeInit } from "../../sandbox/intelligence/validate";
+describe("fixUseBeforeInit", () => {
+  it("moves a late declaration above its first use and leaves correct files alone", () => {
+    const src = "export interface T { a: number }\nexport const mockData = {\n  transactions: MOCK_TRANSACTIONS,\n};\n\nexport const MOCK_TRANSACTIONS: T[] = [\n  { a: 1 },\n];\n";
+    const out = fixUseBeforeInit("src/mock/data.ts", src)!;
+    expect(out.indexOf("export const MOCK_TRANSACTIONS")).toBeLessThan(out.indexOf("export const mockData"));
+    expect(validateTsxSyntax("src/mock/data.ts", out)).toEqual([]);
+    expect(fixUseBeforeInit("src/a.ts", "export const A = 1;\nexport const B = A;")).toBeNull();
+  });
+});

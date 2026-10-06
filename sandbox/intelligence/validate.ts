@@ -173,6 +173,32 @@ function useBeforeInit(file: string, ast: AstNode): Diagnostic[] {
   return out;
 }
 
+/** Deterministic repair for USE_BEFORE_INIT: moves each late top-level declaration (whole statement, by line — sucrase
+ *  keeps line numbers) above the first statement that reads it. Returns the fixed code, or null when nothing changed
+ *  or the result would still be wrong; the AI never has to move code blocks by hand. */
+export function fixUseBeforeInit(file: string, code0: string): string | null {
+  let code = code0;
+  for (let pass = 0; pass < 6; pass++) {
+    let ast: AstNode;
+    try {
+      const out = transform(code, { transforms: /\.tsx?$/i.test(file) ? ["typescript", "jsx"] : ["jsx"], production: true, filePath: file }).code;
+      ast = parse(out, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true, locations: true }) as unknown as AstNode;
+    } catch { return null; }
+    const issue = useBeforeInit(file, ast)[0];
+    if (!issue) return code === code0 ? null : code;
+    const name = /^(\S+) is used/.exec(issue.message)?.[1];
+    const body = ast["body"] as (AstNode & { loc: { start: { line: number }; end: { line: number } } })[];
+    const user = body.find((st) => st.loc.start.line <= issue.line && st.loc.end.line >= issue.line);
+    const decl = body.find((st) => { const dd = /^Export/.test(st.type) ? (st["declaration"] as AstNode | null) : st; return dd?.type === "VariableDeclaration" ? (dd["declarations"] as AstNode[]).some((v) => (v["id"] as AstNode)["name"] === name) : dd?.type === "ClassDeclaration" && (dd["id"] as AstNode | null)?.["name"] === name; });
+    if (!user || !decl || decl.loc.start.line <= user.loc.start.line) return null;
+    const lines = code.split("\n");
+    const block = lines.splice(decl.loc.start.line - 1, decl.loc.end.line - decl.loc.start.line + 1);
+    lines.splice(user.loc.start.line - 1, 0, ...block, "");
+    code = lines.join("\n");
+  }
+  return null;
+}
+
 export function validateTs(file: string): Diagnostic[] {
   return [d({ type: "typescript_error", file, line: 1, column: 1, message: "TypeScript can't run in a static site without a build step — use plain .js", code: "TS_NOT_SUPPORTED" })];
 }

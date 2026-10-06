@@ -31,18 +31,12 @@ describe("project type rules", () => {
 });
 
 describe("vite relative imports", () => {
-  it("flags a side-effect CSS import that points outside src (the real failing build)", async () => {
-    const { MemoryFileStore } = await import("../workspace/workspace");
-    const { validateViteImports } = await import("./validate");
-    const s = new MemoryFileStore();
-    s.write("package.json", '{"dependencies":{"vite":"5"}}');
-    s.write("src/main.tsx", "import './App';\nimport '../styles/global.css';\n");
-    s.write("src/App.tsx", "export default 1;");
-    s.write("src/styles/global.css", "body{}");
-    const e = validateViteImports(s);
+  it("flags a side-effect CSS import that points outside src (the real failing build)", () => {
+    const bad = store({ "package.json": '{"dependencies":{"vite":"5"}}', "index.html": '<script type="module" src="/src/main.tsx"></script>', "src/main.tsx": "import './App';\nimport '../styles/global.css';\n", "src/App.tsx": "export default 1;", "src/styles/global.css": "body{}" });
+    const e = validateProject(bad).errors.filter((x) => x.code === "IMPORT_NOT_FOUND");
     expect(e).toHaveLength(1);
     expect(e[0]!.message).toMatch(/src\/styles\/global\.css/);
-    s.write("src/main.tsx", "import './App';\nimport './styles/global.css';\n");
-    expect(validateViteImports(s)).toHaveLength(0);
+    const good = store({ "package.json": '{"dependencies":{"vite":"5"}}', "index.html": '<script type="module" src="/src/main.tsx"></script>', "src/main.tsx": "import './App';\nimport './styles/global.css';\n", "src/App.tsx": "export default 1;", "src/styles/global.css": "body{}" });
+    expect(validateProject(good).errors.filter((x) => x.code === "IMPORT_NOT_FOUND")).toHaveLength(0);
   });
 });

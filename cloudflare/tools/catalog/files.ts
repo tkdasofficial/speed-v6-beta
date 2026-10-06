@@ -3,7 +3,8 @@ import { defineTool } from "../registry";
 import { webSearchTool } from "./websearch";
 import { z, P, ToolFailure, safeToolPath, getFile, visible, write, remove, detect, detectRoutes, importedPackages, fetchJson, gh, TEXT_EXT } from "./util";
 import { searchText, searchFilename, outline } from "../../../sandbox/intelligence/search";
-import { validateProject, validateFile, validateTs, validateViteExports, isViteProject } from "../../../sandbox/intelligence/validate";
+import { validateProject, validateFile, validateTs, validateViteExports, isViteProject, validateTsxSyntax } from "../../../sandbox/intelligence/validate";
+import { MemoryFileStore } from "../../../sandbox/workspace/workspace";
 import { analyzeFile, projectGraph, brokenReferences } from "../../../sandbox/intelligence/deps";
 
 const tree = (paths: string[], depth: number) => paths.filter((p) => p.split("/").length <= depth);
@@ -33,11 +34,18 @@ export const fileTools = [
     },
   }),
   defineTool({
-    name: "read_file", category: "workspace", description: "Read a project file (optionally a line range).", capabilities: ["open", "view", "cat"],
-    inputSchema: z.object({ path: P, start: z.number().int().min(1).optional(), end: z.number().int().min(1).optional() }),
+    name: "read_file", category: "workspace", description: "Read a project file: whole, a line range (start/end), or only one symbol/jsx element/CSS selector with a few surrounding lines (context-efficient).", capabilities: ["open", "view", "cat"],
+    inputSchema: z.object({ path: P, start: z.number().int().min(1).optional(), end: z.number().int().min(1).optional(), symbol: z.string().max(200).optional(), jsx: z.string().max(200).optional(), selector: z.string().max(500).optional(), media: z.string().max(300).optional(), contains: z.string().optional(), occurrence: z.number().int().min(1).optional() }),
     handler: async (a, env) => {
       const p = safeToolPath(a.path); const f = getFile(await env.files(), p);
       if (f.encoding === "base64") return { data: { path: p, encoding: "base64", size: f.content.length, content: null }, warnings: ["Binary file — content omitted; use read_asset"] };
+      if (a.symbol || a.jsx || a.selector) {
+        const { readTarget, TargetError } = await import("../../../sandbox/editor/target");
+        try {
+          const r = readTarget(f.content, p, { symbol: a.symbol, jsx: a.jsx, selector: a.selector, media: a.media, contains: a.contains, occurrence: a.occurrence });
+          return { data: { path: p, totalLines: f.content.split("\n").length, target: r.method, start: r.start, end: r.end, content: r.text } };
+        } catch (e) { if (e instanceof TargetError) throw new ToolFailure(e.code === "AMBIGUOUS" ? "CONFLICT" : "INVALID_ARGUMENT", `${p}: ${e.message}`); throw e; }
+      }
       const lines = f.content.split("\n");
       const s = a.start ?? 1, e = Math.min(lines.length, a.end ?? Math.max(s + 600, 600));
       return { data: { path: p, totalLines: lines.length, start: s, end: e, content: lines.slice(s - 1, e).join("\n") }, ...(e < lines.length ? { warnings: [`Truncated at line ${e}; pass start/end for more`] } : {}) };
@@ -74,25 +82,44 @@ export const fileTools = [
     },
   }),
   defineTool({
-    name: "update_file", category: "workspace", description: "Targeted edit: replace exact text (must be unique unless all=true).", readOnly: false, capabilities: ["edit", "modify", "change code"],
-    inputSchema: z.object({ path: P, find: z.string().min(1), replace: z.string(), all: z.boolean().default(false) }),
+    name: "update_file", category: "workspace",
+    description: "Targeted edit of ONE region of the current file; everything else is preserved. Target with find (exact unique text), lines{start,end}+expect, symbol (function/component/const/class/type or Class.method), jsx (tag, tag.class, tag#id), or selector (+media) for a CSS rule; combine find with symbol/jsx/selector/lines to search only inside it; contains/occurrence pick among duplicates. mode: replace (default) | before | after | append (end of file, for building large files in chunks). Refused when ambiguous, stale, partial-word, or when it would introduce a syntax error.",
+    readOnly: false, capabilities: ["edit", "modify", "change code", "partial edit", "replace lines", "edit css rule", "edit component"],
+    inputSchema: z.object({
+      path: P, find: z.string().min(1).optional(), replace: z.string().default(""), all: z.boolean().default(false),
+      lines: z.object({ start: z.number().int().min(1), end: z.number().int().min(1) }).optional(), expect: z.string().optional(),
+      symbol: z.string().min(1).max(200).optional(), jsx: z.string().min(1).max(200).optional(), selector: z.string().min(1).max(500).optional(), media: z.string().max(300).optional(),
+      contains: z.string().min(1).optional(), occurrence: z.number().int().min(1).optional(),
+      mode: z.enum(["replace", "before", "after", "append"]).default("replace"), allowInvalid: z.boolean().default(false),
+    }),
     handler: async (a, env) => {
       const p = safeToolPath(a.path); const s = await env.files(); const cur = getFile(s, p).content;
-      const n = cur.split(a.find).length - 1;
-      if (!n) throw new ToolFailure("INVALID_ARGUMENT", `Text not found in ${p} — read the file and copy the exact text`, false, undefined, "read_file");
-      if (n > 1 && !a.all) throw new ToolFailure("CONFLICT", `Text appears ${n} times in ${p}; add context or set all=true`);
-      // A find-text that starts or ends inside a word (e.g. "Home" inside "Homeme") silently leaves the rest of the
-      // word behind and corrupts the code, so it is refused with the real surrounding line.
-      const at = cur.indexOf(a.find), W = /[\w$]/;
-      const cutsWord = (W.test(a.find[0]!) && at > 0 && W.test(cur[at - 1]!)) || (W.test(a.find.at(-1)!) && W.test(cur[at + a.find.length] ?? ""));
-      if (cutsWord && !a.all) {
-        const ls = cur.lastIndexOf("\n", at) + 1, le = cur.indexOf("\n", at + a.find.length);
-        throw new ToolFailure("INVALID_ARGUMENT", `Find-text cuts a word in half in ${p}. The full line is: ${JSON.stringify(cur.slice(ls, le < 0 ? undefined : le).slice(0, 300))} — use the whole word or line as find-text`);
+      const { applyEdit, excerpt, TargetError } = await import("../../../sandbox/editor/target");
+      let next: string, from: number, to: number, method: string, replacements = 1; const warnings: string[] = [];
+      if (a.all && a.find && !a.symbol && !a.jsx && !a.selector && !a.lines) {
+        // Explicit replace-all of whole-word occurrences (renames); partial-word hits are skipped.
+        const re = new RegExp(`${/^[\w$]/.test(a.find) ? "(?<![\\w$])" : ""}${a.find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}${/[\w$]$/.test(a.find) ? "(?![\\w$])" : ""}`, "g");
+        replacements = (cur.match(re) ?? []).length;
+        if (!replacements) throw new ToolFailure("INVALID_ARGUMENT", `Text not found as a whole word in ${p} — read the file and copy the exact text`, false, undefined, "read_file");
+        next = cur.replace(re, () => a.replace); from = next.indexOf(a.replace); to = from + a.replace.length; method = "all occurrences";
+      } else {
+        try {
+          const r = applyEdit(cur, p, { find: a.find, lines: a.lines, expect: a.expect, symbol: a.symbol, jsx: a.jsx, selector: a.selector, media: a.media, contains: a.contains, occurrence: a.occurrence }, a.replace, a.mode);
+          ({ next, from, to } = r); method = r.located.method; if (r.located.note) warnings.push(r.located.note);
+        } catch (e) {
+          if (!(e instanceof TargetError)) throw e;
+          const code = e.code === "AMBIGUOUS" ? "CONFLICT" : "INVALID_ARGUMENT";
+          throw new ToolFailure(code, `${p}: ${e.message}. The file was not changed.`, false, undefined, "read_file");
+        }
       }
-      const next = a.all ? cur.split(a.find).join(a.replace) : cur.replace(a.find, () => a.replace);
+      // Integrity: an edit may not introduce new syntax errors (unless explicitly building an incomplete chunk).
+      const before = syntaxErrors(p, cur), after = syntaxErrors(p, next);
+      if (after.length > before.length && !a.allowInvalid) {
+        const e0 = after.find((d) => !before.some((b) => b.message === d.message)) ?? after[0]!;
+        throw new ToolFailure("INVALID_ARGUMENT", `${p}: this edit would break the file (line ${e0.line}: ${e0.message}) — nothing was changed. Fix the replacement text`, false, undefined, "read_file");
+      }
       write(env, s, p, next);
-      const pos = next.indexOf(a.replace), from = next.lastIndexOf("\n", Math.max(0, pos) - 1) + 1, to = next.indexOf("\n", pos + a.replace.length);
-      return { data: { path: p, replacements: a.all ? n : 1, after: pos < 0 ? "" : next.slice(from, to < 0 ? undefined : to).slice(0, 600), diagnostics: validateFile(s, p).filter((d) => d.severity === "error").slice(0, 10) }, stateChanges: [{ kind: "file", target: p, detail: "updated" }] };
+      return { data: { path: p, target: method, replacements, linesChanged: `${next.slice(0, from).split("\n").length}-${next.slice(0, Math.max(from, to - 1)).split("\n").length}`, after: excerpt(next, from, to, 2, 30).slice(0, 1500), diagnostics: validateFile(s, p).filter((d) => d.severity === "error").slice(0, 10) }, ...(warnings.length ? { warnings } : {}), stateChanges: [{ kind: "file", target: p, detail: "updated" }] };
     },
   }),
   defineTool({
@@ -291,4 +318,11 @@ export function lint(s: import("../../../sandbox/workspace/workspace").MemoryFil
     });
   }
   return out;
+}
+
+/** Syntax-level errors for one file's content (used to refuse edits that would break the file). */
+export function syntaxErrors(path: string, content: string): { line: number; message: string }[] {
+  if (/\.(tsx|jsx|ts)$/i.test(path)) return validateTsxSyntax(path, content).filter((d) => d.severity === "error" && /SYNTAX/.test(d.code ?? "")).map((d) => ({ line: d.line, message: d.message }));
+  const st = new MemoryFileStore(); st.set({ path, content, encoding: "utf8", updatedAt: 0 } as never);
+  return validateFile(st, path).filter((d) => d.severity === "error").map((d) => ({ line: d.line, message: d.message }));
 }

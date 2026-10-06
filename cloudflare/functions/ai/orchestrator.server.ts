@@ -211,16 +211,22 @@ export async function finalSummary(input: { model: AiModel; result: Record<strin
 
 // ---- Agent loop: message → actions → message … ----
 export type AgentActionKind = "read" | "create" | "edit" | "delete" | "think" | "check" | "tool";
-export type AgentStepAction = { kind: AgentActionKind; path?: string; content?: string; find?: string; replace?: string; note?: string; name?: string; args?: Record<string, unknown> };
+export type AgentStepAction = { kind: AgentActionKind; path?: string; content?: string; find?: string; replace?: string; target?: Record<string, unknown>; note?: string; name?: string; args?: Record<string, unknown> };
 const KINDS: AgentActionKind[] = ["read", "create", "edit", "delete", "think", "check", "tool"];
 /** Internal tools that change files or build; stripped in plan mode. */
 const WRITE_TOOLS = new Set(["create_file", "edit_file", "patch_file", "delete_file", "rename_file", "move_file", "rollback_change", "build_project", "build_static"]);
 const WRITE_KINDS: AgentActionKind[] = ["create", "edit", "delete", "check"];
 
+const TARGET_KEYS = ["lines", "expect", "symbol", "jsx", "selector", "media", "contains", "occurrence", "mode", "all"] as const;
+function pickTarget(x: Record<string, unknown>): { target?: Record<string, unknown> } {
+  const t: Record<string, unknown> = {};
+  for (const k of TARGET_KEYS) if (x[k] !== undefined && x[k] !== null) t[k] = x[k];
+  return Object.keys(t).length ? { target: t } : {};
+}
 const LOOP_RULES = (tools: string) => `You are a codebase editing agent working in a loop. Each turn reply with ONLY one JSON object, no prose:
 {"message": "1-3 short sentences to the user: what you found/did and what's next", "actions": [...], "done": false}
 Actions run on the project's real files through the tool orchestrator; structured results (success, error code, nextRecommendedAction) come back to you next turn.
-Shorthands: {"kind":"read","path"}, {"kind":"create","path","content"}, {"kind":"edit","path","find","replace"} (or "content" for a full rewrite), {"kind":"delete","path"}, {"kind":"check"} (validates the project), {"kind":"think","note"}.
+Shorthands: {"kind":"read","path"}, {"kind":"create","path","content"}, {"kind":"edit","path","find","replace"} — or target one region instead of find: "lines":{"start","end"}+"expect" (the text you read there), "symbol" (function/component/const/Class.method), "jsx" ("section.hero"), "selector" (+"media") for one CSS rule; "contains"/"occurrence" pick among duplicates; "mode":"before"|"after"|"append" inserts instead of replacing (append builds a large file in chunks). Only the target changes; never rewrite a whole file for a small change ("content" = full rewrite, new/tiny files only), {"kind":"delete","path"}, {"kind":"check"} (validates the project), {"kind":"think","note"}.
 Any other tool: {"kind":"tool","name":"<tool>","args":{...}}. Tools for this phase (args with ? are optional; ! = destructive):
 ${tools}
 Need a capability not listed? Call find_tools{capability:"..."} — the orchestrator returns the right tool.`;
@@ -274,7 +280,7 @@ function parseStep(text: string): { message: string; actions: AgentStepAction[];
       return { kind: "tool", name, args: args && typeof args === "object" ? args : rest };
     };
     const actions = (Array.isArray(o.actions) ? o.actions.map(norm) : []).filter((x): x is AgentStepAction => !!x && typeof x === "object" && KINDS.includes((x as AgentStepAction).kind)).slice(0, 12)
-      .map((x) => ({ kind: x.kind, ...(typeof x.path === "string" ? { path: x.path.slice(0, 400) } : {}), ...(typeof x.content === "string" ? { content: x.content.slice(0, 200000) } : {}), ...(typeof x.find === "string" ? { find: x.find } : {}), ...(typeof x.replace === "string" ? { replace: x.replace } : {}), ...(typeof x.note === "string" ? { note: x.note.slice(0, 500) } : {}), ...(typeof x.name === "string" ? { name: x.name.slice(0, 60) } : {}), ...(x.args && typeof x.args === "object" && !Array.isArray(x.args) ? { args: x.args } : {}) }));
+      .map((x) => ({ kind: x.kind, ...(typeof x.path === "string" ? { path: x.path.slice(0, 400) } : {}), ...(typeof x.content === "string" ? { content: x.content.slice(0, 200000) } : {}), ...(typeof x.find === "string" ? { find: x.find } : {}), ...(typeof x.replace === "string" ? { replace: x.replace } : {}), ...(pickTarget(x as unknown as Record<string, unknown>)), ...(typeof x.note === "string" ? { note: x.note.slice(0, 500) } : {}), ...(typeof x.name === "string" ? { name: x.name.slice(0, 60) } : {}), ...(x.args && typeof x.args === "object" && !Array.isArray(x.args) ? { args: x.args } : {}) }));
     if (!message && !actions.length) return null;
     return { message: message || "Working on it.", actions, done: o.done === true };
   } catch { return null; }

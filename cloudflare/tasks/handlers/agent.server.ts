@@ -16,7 +16,7 @@ import type { Batch, SubTask } from "../../agent/grouping";
 const MAX_ROUNDS = 12;
 const MAX_REPAIRS = 3; // failed checks inside the build loop before giving up
 const MAX_FIX_ATTEMPTS = 3; // validation/test → fix → retest cycles
-type Step = { kind: "read" | "create" | "edit" | "delete" | "think" | "check" | "tool"; path?: string; content?: string; find?: string; replace?: string; note?: string; name?: string; args?: Record<string, unknown> };
+type Step = { kind: "read" | "create" | "edit" | "delete" | "think" | "check" | "tool"; path?: string; content?: string; find?: string; replace?: string; target?: Record<string, unknown>; note?: string; name?: string; args?: Record<string, unknown> };
 type Phase = "planning" | "awaiting" | "building" | "validating" | "previewing";
 const MAX_VISUAL_REPAIRS = 3; // preview verification → repair → rebuild → re-verify cycles
 type State = {
@@ -54,12 +54,12 @@ function toTool(s: Step): { name: string; args: Record<string, unknown> } {
   switch (s.kind) {
     case "read": return { name: "read_file", args: { path: s.path } };
     case "create": return { name: "write_file", args: { path: s.path, content: s.content ?? "" } };
-    case "edit": return s.find === undefined && s.content !== undefined ? { name: "write_file", args: { path: s.path, content: s.content } } : { name: "update_file", args: { path: s.path, find: s.find, replace: s.replace ?? "" } };
+    case "edit": return s.find === undefined && !s.target && s.content !== undefined ? { name: "write_file", args: { path: s.path, content: s.content } } : { name: "update_file", args: { ...(s.target ?? {}), path: s.path, ...(s.find !== undefined ? { find: s.find } : {}), replace: s.replace ?? s.content ?? "" } };
     case "delete": return { name: "delete_file", args: { path: s.path, confirm: true } };
     case "check": return { name: "verify_project", args: {} };
     case "tool": {
       const raw = s.name ?? ""; const args = { ...(s.args ?? {}) };
-      if (raw === "edit_file" && typeof args["content"] === "string" && args["find"] === undefined) return { name: "write_file", args };
+      if (raw === "edit_file" && typeof args["content"] === "string" && args["find"] === undefined && !["lines", "symbol", "jsx", "selector", "mode"].some((k) => args[k] !== undefined)) return { name: "write_file", args };
       if (raw === "patch_file") return { name: "apply_patch", args: { path: args["path"], edits: args["edits"] } };
       return { name: ALIASES[raw] ?? raw, args };
     }

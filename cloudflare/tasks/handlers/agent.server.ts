@@ -17,7 +17,8 @@ const MAX_ROUNDS = 12;
 const MAX_REPAIRS = 3; // failed checks inside the build loop before giving up
 const MAX_FIX_ATTEMPTS = 3; // validation/test → fix → retest cycles
 type Step = { kind: "read" | "create" | "edit" | "delete" | "think" | "check" | "tool"; path?: string; content?: string; find?: string; replace?: string; note?: string; name?: string; args?: Record<string, unknown> };
-type Phase = "planning" | "awaiting" | "building" | "validating";
+type Phase = "planning" | "awaiting" | "building" | "validating" | "previewing";
+const MAX_VISUAL_REPAIRS = 3; // preview verification → repair → rebuild → re-verify cycles
 type State = {
   phase?: Phase; changed?: string[]; created?: string[]; lastCheck?: boolean | null; round?: number; results?: string; failedBuilds?: number;
   failedIds?: string[]; baseRevision?: number; mutated?: boolean; plan?: AgentPlan; planVersion?: number; decisionSeq?: number;
@@ -25,6 +26,8 @@ type State = {
   /** Agent Core: analyzed sub-tasks, batches (with their agent_steps ids), relevant files and summary status. */
   ag?: { tasks: SubTask[]; batches: Batch[]; batchSteps: Record<string, string>; relevant?: string[] };
   finalSummaryStatus?: string;
+  /** Visual preview verification (React/Vite): current runtime job, cycle count and the reported outcome. */
+  previewJob?: string | null; previewStartedAt?: number; visualAttempts?: number; preview?: string;
 };
 type P = { prompt?: string; model?: "speed" | "flash" | "heavy"; depth?: "quick" | "balanced" | "deep"; plan?: boolean; clientMessageId?: string; parentRunId?: string };
 
@@ -406,12 +409,27 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
     if (!t.ok) issues = [t.error ?? "Build test failed"];
   }
   if (!issues.length) {
+    // React/Vite: a passing build only proves the code compiles; the task completes only after the real preview has
+    // been opened in a browser and verified (previewStep). Plain HTML projects keep the static checks.
+    if (isViteProject(store) && !st.preview?.startsWith("Passed")) {
+      st.phase = "previewing"; st.previewJob = null;
+      return { done: false, delayMs: 10 };
+    }
+    return complete(c, st, store);
+  }
+  return repair(c, st, store, issues);
+}
+
+async function complete(c: TaskContext, st: State, store: MemoryFileStore): Promise<StepResult> {
+  const plan = st.plan;
+  const ar = await AgentRun.for(c);
+  {
     const created = (st.created ?? []).filter((f) => store.get(f));
     const modified = (st.changed ?? []).filter((f) => !created.includes(f) && store.get(f));
     const deleted = (st.changed ?? []).filter((f) => !store.get(f));
     const feats = [...(plan?.pages ?? []), ...(plan?.functional ?? []), ...(plan?.design ?? [])].slice(0, 8);
     const list = (h: string, l: string[]) => (l.length ? `${h}:\n${l.slice(0, 20).map((x) => `- ${x}`).join("\n")}` : "");
-    const text = ["Build Complete", plan?.summary || plan?.title || "", list("Implemented", feats), list("Files created", created), list("Files modified", modified), list("Files deleted", deleted), `Validation: ${st.validation}\nBuild/Test: ${st.test ?? "Passed"}`].filter(Boolean).join("\n\n");
+    const text = ["Build Complete", plan?.summary || plan?.title || "", list("Implemented", feats), list("Files created", created), list("Files modified", modified), list("Files deleted", deleted), `Validation: ${st.validation}\nBuild/Test: ${st.test ?? "Passed"}${st.preview ? `\nPreview: ${st.preview}` : ""}`].filter(Boolean).join("\n\n");
     // The run's single final-summary AI call, over the structured, verified result. Falls back to the factual text.
     const sid = await ar.step({ type: "summary", name: "Final summary" });
     let finalText = text; const t0 = Date.now();
@@ -419,7 +437,7 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
       const { finalSummary } = await import("../../functions/ai/orchestrator.server");
       const r = await finalSummary({ model: (c.payload as P).model ?? "speed", result: {
         request: (c.payload as P).prompt ?? "", tasks: (st.ag?.tasks ?? []).map((t) => t.text), batches: (st.ag?.batches ?? []).map((b) => ({ id: b.id, kind: b.kind, tasks: b.taskIds.length })),
-        filesCreated: created, filesModified: modified, filesDeleted: deleted, planned: feats, validation: st.validation, buildTest: st.test ?? "Passed",
+        filesCreated: created, filesModified: modified, filesDeleted: deleted, planned: feats, validation: st.validation, buildTest: st.test ?? "Passed", ...(st.preview ? { previewVerification: st.preview } : {}),
       } });
       finalText = r.text; st.finalSummaryStatus = "generated";
       await ar.usage({ stepId: sid, provider: r.provider, model: r.model, requestType: "final_summary", latencyMs: r.latencyMs, status: "succeeded", metadata: { fallbacks: r.fallbacks } });
@@ -431,6 +449,10 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
     }
     return end(c, st, "done", finalText);
   }
+}
+
+async function repair(c: TaskContext, st: State, store: MemoryFileStore, issues: string[]): Promise<StepResult> {
+  const ar = await AgentRun.for(c);
   st.fixAttempts = (st.fixAttempts ?? 0) + 1;
   if (st.fixAttempts <= MAX_FIX_ATTEMPTS) {
     await ar.step({ type: "recover", name: `Automatic fix ${st.fixAttempts}/${MAX_FIX_ATTEMPTS}`, status: "succeeded", metadata: { issues: issues.slice(0, 6) } });
@@ -484,6 +506,7 @@ export const agentHandler: TaskHandler = {
       case "awaiting": return decisionStep(c, st);
       case "building": return buildStep(c, st, p);
       case "validating": return validateStep(c, st);
+      case "previewing": return previewStep(c, st, p);
     }
   },
   async onCancel(c) {

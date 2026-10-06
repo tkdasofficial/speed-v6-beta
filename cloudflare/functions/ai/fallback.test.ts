@@ -80,3 +80,10 @@ describe("server-side model fallback", () => {
     expect(JSON.stringify(e.failed)).toMatch(/json_validate_failed/);
   });
 });
+
+describe("step parsing", () => {
+  it("takes the first step when a model sends several JSON objects back to back", async () => {
+    const { firstJsonObject } = await import("./orchestrator.server");
+    expect(firstJsonObject('{"message":"a }{ b","actions":[]}, {"message":"next"}')).toBe('{"message":"a }{ b","actions":[]}');
+  });
+});

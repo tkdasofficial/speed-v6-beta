@@ -238,12 +238,28 @@ At most 4 actions per turn, and at most 2 new or rewritten files per turn; keep 
 If the user only asked a question, answer in "message" with "done": true. Keep messages concise; tool details stay internal.`;
 const PLAN_LOOP = " PLAN MODE IS ON: only use read/search/inspect/understand/validate tools and think, never edit, create, delete or build. When you have a plan, put it in message and set done true.";
 
+/** The first complete top-level JSON object in `t` (string-aware brace matching), or null. Models sometimes emit
+ *  several step objects back to back; the first one is the step for this turn. */
+export function firstJsonObject(t: string): string | null {
+  const a = t.indexOf("{");
+  if (a < 0) return null;
+  let depth = 0, str = false, esc = false;
+  for (let i = a; i < t.length; i++) {
+    const c = t[i]!;
+    if (str) { if (esc) esc = false; else if (c === "\\") esc = true; else if (c === '"') str = false; continue; }
+    if (c === '"') str = true; else if (c === "{") depth++; else if (c === "}" && --depth === 0) return t.slice(a, i + 1);
+  }
+  return null;
+}
+
 function parseStep(text: string): { message: string; actions: AgentStepAction[]; done: boolean } | null {
   const t = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
   const a = t.indexOf("{"), b = t.lastIndexOf("}");
   if (a < 0 || b <= a) return null;
   try {
-    const o = JSON.parse(t.slice(a, b + 1)) as { message?: unknown; actions?: unknown; done?: unknown };
+    let raw: unknown;
+    try { raw = JSON.parse(t.slice(a, b + 1)); } catch { const first = firstJsonObject(t); if (!first) throw new Error("no JSON"); raw = JSON.parse(first); }
+    const o = raw as { message?: unknown; actions?: unknown; done?: unknown };
     const message = typeof o.message === "string" ? o.message.trim() : "";
     // Models often name the tool directly ({"kind":"create_file"} / {"tool":"x"} / {"type":"x"}); normalize to the contract.
     const norm = (raw: unknown): unknown => {

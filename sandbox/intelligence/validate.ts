@@ -1,5 +1,6 @@
 // Static validation of .local files. Returns structured diagnostics with errors and warnings separated.
 import { parse } from "acorn";
+import { transform } from "sucrase";
 import type { FileStore } from "../types/filesystem";
 import { analyzeFile } from "./deps";
 import { classify } from "./errors";

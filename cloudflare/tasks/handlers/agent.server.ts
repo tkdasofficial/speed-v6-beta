@@ -270,6 +270,11 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
     const r = await act(c, st, { kind: L.kind, running: L.running, done: L.done, failed: L.failed, round }, async () => {
       const res = await ar.tool(sess, name, args, { stepId: rid, batchId });
       log.push(fmt(res));
+      // A failed find/replace gets the file's real current text, so the next round can copy it instead of guessing.
+      if (!res.success && res.toolName === "update_file" && typeof args["path"] === "string") {
+        const cur = (await sess.files().catch(() => null))?.get(args["path"] as string)?.content;
+        if (cur) log.push(`--- ${args["path"] as string} (current content)\n${cur.slice(0, 3000)}`);
+      }
       const ok = VERIFY.has(res.toolName) ? verifyOk(res) : res.success;
       return ok ? { ok: true } : { ok: false, error: (res.error?.message ?? fmt(res)).slice(0, 600) };
     });
@@ -429,8 +434,12 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
   }
   // Automatic fix: back to Thinking → Action with the real failures, then validate again.
   st.phase = "building";
-  st.results = `VALIDATION FAILED (fix attempt ${st.fixAttempts}/${MAX_FIX_ATTEMPTS}). Fix exactly these problems with targeted edits, then set done:\n${issues.map((i) => `- ${i}`).join("\n")}`;
-  st.round = Math.min(st.round ?? 0, MAX_ROUNDS - 2);
+  // The files named in the problems are attached verbatim: without them the model guessed find-text, every edit
+  // failed with "Text not found", and the two-round fix budget ran out on re-reads.
+  const named = [...new Set(issues.join("\n").match(/[\w@.\/-]+\.(?:tsx?|jsx?|css|html?|json)\b/g) ?? [])].filter((f) => store.get(f)).slice(0, 4);
+  const attached = named.map((f) => `--- ${f} (current content)\n${store.get(f)!.content.slice(0, 3000)}`).join("\n");
+  st.results = `VALIDATION FAILED (fix attempt ${st.fixAttempts}/${MAX_FIX_ATTEMPTS}). Fix exactly these problems with targeted edits (copy find-text exactly from the contents below, or rewrite the file with "content"), then set done:\n${issues.map((i) => `- ${i}`).join("\n")}${attached ? `\n${attached}` : ""}`;
+  st.round = Math.min(st.round ?? 0, MAX_ROUNDS - 4);
   await phase(c, "building");
   return { done: false, delayMs: 10 };
 }

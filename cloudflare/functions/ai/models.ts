@@ -37,3 +37,12 @@ export function chainFor(role: ModelRole): ModelTarget[] {
 }
 
 export const isNemotron = (t: ModelTarget) => t.provider === "nvidia" && t.id.includes("nemotron");
+
+/** Vision-capable models, in priority order (free-tier first). Only targets listed here ever receive images; text
+ *  chains above are never sent screenshots. `image` is the confirmed input capability of that exact model. */
+export type VisionTarget = ModelTarget & { image: true; maxOut: number };
+export const VISION_CHAIN: VisionTarget[] = [
+  { provider: "gemini", id: "gemini-3.5-flash-lite", image: true, maxOut: 1_200 },
+  { provider: "groq", id: "meta-llama/llama-4-scout-17b-16e-instruct", image: true, maxOut: 1_200 },
+  { provider: "nvidia", id: "meta/llama-3.2-90b-vision-instruct", image: true, maxOut: 1_200 },
+];

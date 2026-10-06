@@ -71,7 +71,7 @@ export async function getJob(userId: string, projectId: string, id: string) {
   const cmd = r.kind === "command" && r.script ? (JSON.parse(r.script) as { program: string; args: string[] }) : null;
   return {
     id: r.id, kind: r.kind, script: r.kind === "script" ? r.script : null, command: cmd ? [cmd.program, ...cmd.args].join(" ") : null, status: r.status, exitCode: r.exit_code,
-    output: r.output, stdout: r.stdout, stderr: r.stderr, diagnostics: r.diagnostics ? (JSON.parse(r.diagnostics) as unknown[]) : [], changedFiles: r.files ? (JSON.parse(r.files) as string[]) : [],
+    output: r.output, stdout: r.stdout, stderr: r.stderr, diagnostics: r.kind !== "preview" && r.diagnostics ? (JSON.parse(r.diagnostics) as unknown[]) : [], changedFiles: r.kind !== "preview" && r.files ? (JSON.parse(r.files) as string[]) : [],
     phase: r.phase, stopRequested: !!r.stop_requested, heartbeatAt: r.heartbeat_at, process: r.process_info ? (JSON.parse(r.process_info) as Record<string, unknown>) : null,
     createdAt: r.created_at, completedAt: r.completed_at,
   };

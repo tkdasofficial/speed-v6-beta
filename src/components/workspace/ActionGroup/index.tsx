@@ -23,7 +23,19 @@ export function ActionRow({ action }: { action: AgentAction }) {
     </div>
   );
   if (!action.detail) return row;
-  return <div className="grid gap-1">{row}<p className={`m-0 break-words px-2.5 text-[12px] leading-5 ${action.status === "failed" ? "text-destructive" : "text-muted-foreground"}`}>{action.detail}</p></div>;
+  return <div className="grid min-w-0 gap-1">{row}<ActionDetail text={action.detail} failed={action.status === "failed"} /></div>;
+}
+
+/** One compact line; the full technical detail only on request. */
+function ActionDetail({ text, failed }: { text: string; failed: boolean }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 90 || text.includes("\n");
+  return (
+    <div className={`flex min-w-0 items-start gap-2 px-2.5 text-[12px] leading-5 ${failed ? "text-destructive" : "text-muted-foreground"}`}>
+      <p className={`m-0 min-w-0 flex-1 [overflow-wrap:anywhere] ${open ? "whitespace-pre-wrap" : "truncate"}`}>{text}</p>
+      {long && <button type="button" onClick={() => setOpen(!open)} className="shrink-0 font-semibold text-muted-foreground hover:text-foreground">{open ? "Hide" : "Details"}</button>}
+    </div>
+  );
 }
 
 export function ActionGroup({ actions }: { actions: AgentAction[] }) {

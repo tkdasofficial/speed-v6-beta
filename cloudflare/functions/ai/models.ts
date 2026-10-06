@@ -5,10 +5,11 @@ export type Provider = "gemini" | "groq" | "nvidia";
 export type ModelTarget = { provider: Provider; id: string };
 export type ModelRole = "speed" | "flash" | "heavy";
 
-export const PROVIDERS: Record<Provider, { url: string; secret: string }> = {
-  gemini: { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", secret: "GEMINI_API_KEY" },
-  groq: { url: "https://api.groq.com/openai/v1/chat/completions", secret: "GROQ_API_KEY" },
-  nvidia: { url: "https://integrate.api.nvidia.com/v1/chat/completions", secret: "NVIDIA_API_KEY" },
+/** `maxOut` keeps each request safely below the provider's free-tier output budget (a cap, never a target). */
+export const PROVIDERS: Record<Provider, { url: string; secret: string; maxOut: number }> = {
+  gemini: { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", secret: "GEMINI_API_KEY", maxOut: 8_000 },
+  groq: { url: "https://api.groq.com/openai/v1/chat/completions", secret: "GROQ_API_KEY", maxOut: 8_000 },
+  nvidia: { url: "https://integrate.api.nvidia.com/v1/chat/completions", secret: "NVIDIA_API_KEY", maxOut: 3_000 },
 };
 
 const GPT_OSS_20B: ModelTarget = { provider: "groq", id: "openai/gpt-oss-20b" };
@@ -16,8 +17,8 @@ const GPT_OSS_120B: ModelTarget = { provider: "groq", id: "openai/gpt-oss-120b" 
 const NEMOTRON_SUPER: ModelTarget = { provider: "nvidia", id: "nvidia/nemotron-3-super-120b-a12b" };
 const GEMINI_FLASH_LITE: ModelTarget = { provider: "gemini", id: "gemini-3.5-flash-lite" };
 
-/** Maximum output-token allowance per model request (a cap, not a target). */
-export const MAX_OUTPUT_TOKENS = 12_000;
+/** Requested output-token allowance; each provider's `maxOut` lowers it further. */
+export const MAX_OUTPUT_TOKENS = 8_000;
 
 /** Ordered chain per role: primary first, then fallbacks tried only on real provider failure. */
 export const CHAINS: Record<ModelRole, ModelTarget[]> = {

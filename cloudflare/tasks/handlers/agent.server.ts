@@ -66,7 +66,9 @@ function toTool(s: Step): { name: string; args: Record<string, unknown> } {
 const VERIFY = new Set(["verify_project"]);
 
 /** Compact, machine-readable result for the model (success/error code/next action). */
-function fmt(r: import("../../tools/types").ToolResult, max = 6000): string {
+function fmt(r: import("../../tools/types").ToolResult, max0 = 3000): string {
+  // Write results only need confirmation; reads keep a bounded excerpt. Full contents stay in the sandbox.
+  const max = /^(write|create|edit|patch|delete|rename|move|update|apply|replace)_/.test(r.toolName) ? 300 : max0;
   if (!r.success) return `${r.toolName} [${r.operationId}]: ERROR ${r.error?.code} — ${r.error?.message}${r.nextRecommendedAction ? ` (next: ${r.nextRecommendedAction})` : ""}`;
   const d = typeof r.data === "string" ? r.data : JSON.stringify(r.data);
   return `${r.toolName} [${r.operationId}]: ok${r.warnings.length ? ` (warnings: ${r.warnings.join("; ").slice(0, 300)})` : ""}${r.nextRecommendedAction ? ` (next: ${r.nextRecommendedAction})` : ""}\n${(d ?? "").slice(0, max)}`;
@@ -316,7 +318,7 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   if (built === false && (st.failedBuilds = (st.failedBuilds ?? 0) + 1) >= MAX_REPAIRS) {
     return end(c, st, "failed", `Not finished. The project check still fails after ${MAX_REPAIRS} repair attempts:\n\n${log.filter((l) => /error/i.test(l)).slice(-1)[0]?.slice(0, 800) ?? "see the failed steps above."}`, `Stopped after ${MAX_REPAIRS} failed repair attempts.`);
   }
-  st.results = log.join("\n").slice(0, 40000);
+  st.results = log.join("\n").slice(-12000);
   st.round = round + 1;
   if (step.done && built !== false) {
     // A pure answer with no file work and nothing changed ends here; real builds go through validation.

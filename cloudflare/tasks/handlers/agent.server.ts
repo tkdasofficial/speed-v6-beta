@@ -324,6 +324,14 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
     return end(c, st, "failed", `Not finished. The project check still fails after ${MAX_REPAIRS} repair attempts:\n\n${log.filter((l) => /error/i.test(l)).slice(-1)[0]?.slice(0, 800) ?? "see the failed steps above."}`, `Stopped after ${MAX_REPAIRS} failed repair attempts.`);
   }
   st.results = log.join("\n").slice(-12000);
+  if (built === false) {
+    // A failed check only shows a few lines around each error; the real cause of an "Unexpected token" is often far
+    // above it. Attach the current text of the failing files (saved revision) so the repair edits exact lines.
+    const bad = [...new Set([...log.join("\n").matchAll(/"file":"([^"]+)"/g)].map((m) => m[1]!))].slice(0, 2);
+    const { store: now } = await fs.loadStore(pid);
+    const attached = bad.map((f) => now.get(f)).filter((f): f is NonNullable<typeof f> => !!f && f.encoding === "utf8").map((f) => `--- ${f.path} (current content, numbered)\n${f.content.split("\n").map((l, i) => `${i + 1}| ${l}`).join("\n").slice(0, 7000)}`);
+    if (attached.length) st.results = `${st.results.slice(-5000)}\nFix the check errors above. Current text of the failing files is below — copy find-text exactly (without the line numbers), or rewrite a short broken file completely with "content".\n${attached.join("\n")}`;
+  }
   st.round = round + 1;
   // A round that only re-runs a passing check has nothing left to do; continuing just burns AI calls.
   const acts = step.actions as Step[];

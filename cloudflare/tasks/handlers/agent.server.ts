@@ -272,8 +272,8 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
       log.push(fmt(res));
       // A failed find/replace gets the file's real current text, so the next round can copy it instead of guessing.
       if (!res.success && res.toolName === "update_file" && typeof args["path"] === "string") {
-        const cur = (await sess.files().catch(() => null))?.get(args["path"] as string)?.content;
-        if (cur) log.push(`--- ${args["path"] as string} (current content)\n${cur.slice(0, 3000)}`);
+        const cur = await ar.tool(sess, "read_file", { path: args["path"] }, { stepId: rid, batchId }).catch(() => null);
+        if (cur?.success) log.push(`(automatic, current content of ${args["path"] as string}) ${fmt(cur)}`);
       }
       const ok = VERIFY.has(res.toolName) ? verifyOk(res) : res.success;
       return ok ? { ok: true } : { ok: false, error: (res.error?.message ?? fmt(res)).slice(0, 600) };

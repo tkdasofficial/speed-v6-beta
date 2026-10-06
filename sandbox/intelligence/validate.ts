@@ -72,6 +72,19 @@ export function validateJson(file: string, text: string): Diagnostic[] {
   }
 }
 
+/** Syntax check for .ts/.tsx/.jsx in Vite projects: the build runtime fails the whole build on one syntax error
+ *  (e.g. a stray `};`), so catch it before the agent reports success. Types are not checked, only syntax. */
+export function validateTsxSyntax(file: string, code: string): Diagnostic[] {
+  try {
+    const out = transform(code, { transforms: /\.tsx?$/i.test(file) ? ["typescript", "jsx"] : ["jsx"], production: true, filePath: file }).code;
+    parse(out, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true });
+    return [];
+  } catch (e) {
+    const err = e as { message: string; loc?: { line: number; column: number } };
+    return [d({ type: "syntax_error", file, line: err.loc?.line ?? 1, column: (err.loc?.column ?? 0) + 1, message: err.message.replace(/\s*\(\d+:\d+\)$/, ""), code: "TS_SYNTAX_ERROR" })];
+  }
+}
+
 export function validateTs(file: string): Diagnostic[] {
   return [d({ type: "typescript_error", file, line: 1, column: 1, message: "TypeScript can't run in a static site without a build step — use plain .js", code: "TS_NOT_SUPPORTED" })];
 }
@@ -188,7 +201,10 @@ export function validateProject(store: FileStore): { errors: Diagnostic[]; warni
   const all: Diagnostic[] = [];
   if (!store.get("index.html")) all.push(d({ type: store.get("package.json") ? "build_configuration_error" : "missing_file", file: "index.html", line: 1, column: 1, message: store.get("package.json") ? "This project needs a build runtime (package.json, no index.html) — build runtimes aren't connected" : "No index.html at the project root", code: "BUILD_NO_ENTRY" }));
   const vite = isViteProject(store);
-  for (const f of store.list()) all.push(...validateFile(store, f.path), ...(!vite && /\.tsx?$/i.test(f.path) && !/\.d\.ts$/i.test(f.path) ? validateTs(f.path) : []));
+  for (const f of store.list()) {
+    const tsx = /\.(tsx?|jsx)$/i.test(f.path) && !/\.d\.ts$/i.test(f.path) && f.encoding !== "base64";
+    all.push(...validateFile(store, f.path), ...(tsx && !vite && !/\.jsx$/i.test(f.path) ? validateTs(f.path) : []), ...(tsx && vite ? validateTsxSyntax(f.path, f.content) : []));
+  }
   all.push(...validatePaths(store), ...validateReferences(store), ...(vite ? [...validateViteExports(store), ...validateViteImports(store)] : []));
   const enriched = all.map((x) => classify(store, x));
   return { errors: enriched.filter((x) => x.severity === "error"), warnings: enriched.filter((x) => x.severity === "warning") };

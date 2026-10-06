@@ -159,7 +159,7 @@ function useBeforeInit(file: string, ast: AstNode): Diagnostic[] {
     if (/^(FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ClassBody)$/.test(x.type)) return;
     if (x.type === "Identifier") {
       const j = declAt.get(x["name"] as string);
-      if (j !== undefined && j > i) out.push(d({ type: "runtime_error" as Diagnostic["type"], file, line: x.loc?.start.line ?? 1, column: (x.loc?.start.column ?? 0) + 1, message: `${x["name"]} is used before it is declared — the page crashes with "Cannot access '${x["name"]}' before initialization". Move its declaration above this line.`, code: "USE_BEFORE_INIT" }));
+      if (j !== undefined && j > i) out.push(d({ type: "runtime_error", file, line: x.loc?.start.line ?? 1, column: (x.loc?.start.column ?? 0) + 1, message: `${x["name"]} is used before it is declared — the page crashes with "Cannot access '${x["name"]}' before initialization". Move its declaration above this line.`, code: "USE_BEFORE_INIT" }));
       return;
     }
     for (const k of Object.keys(x)) {

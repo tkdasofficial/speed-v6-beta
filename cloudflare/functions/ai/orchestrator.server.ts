@@ -78,7 +78,7 @@ async function callRaw(t: ModelTarget, messages: Msg[], opts: CallOpts): Promise
     throw new ProviderError(`HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
   }
   // Streamed server-side so long generations never hit idle timeouts; only final text is kept.
-  let out = "", buf = "", finish = "";
+  let out = "", buf = "", finish = "", streamErr = "";
   const reader = res.body!.getReader();
   const dec = new TextDecoder();
   for (;;) {
@@ -94,13 +94,18 @@ async function callRaw(t: ModelTarget, messages: Msg[], opts: CallOpts): Promise
       const s = l.trim();
       if (!s.startsWith("data:") || s === "data: [DONE]") continue;
       try {
-        const c = (JSON.parse(s.slice(5)) as { choices?: { delta?: { content?: string | null }; finish_reason?: string | null }[] }).choices?.[0];
+        const j = JSON.parse(s.slice(5)) as { error?: { message?: string; code?: string } | string; choices?: { delta?: { content?: string | null }; finish_reason?: string | null }[] };
+        // Providers (Groq) report mid-stream failures as an error frame; without this they looked like "empty response".
+        if (j.error) streamErr = typeof j.error === "string" ? j.error : `${j.error.code ? `${j.error.code}: ` : ""}${j.error.message ?? "stream error"}`;
+        const c = j.choices?.[0];
         out += c?.delta?.content ?? "";
         if (c?.finish_reason) finish = c.finish_reason;
       } catch { /* partial */ }
     }
   }
-  return { text: out.replace(/<think>[\s\S]*?<\/think>/g, "").trim(), finish };
+  const text = out.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+  if (!text && streamErr) throw new ProviderError(`stream error: ${streamErr.replace(/\s+/g, " ").slice(0, 200)}`);
+  return { text, finish };
 }
 
 async function call(t: ModelTarget, messages: Msg[], opts: CallOpts) {
@@ -109,6 +114,7 @@ async function call(t: ModelTarget, messages: Msg[], opts: CallOpts) {
 
 export type ChainResult<T> = { value: T; text: string; used: ModelTarget; failed: { model: string; reason: string }[] };
 
+const NOT_JSON = "That reply was not the required JSON object. Reply again with ONLY the JSON object {\"message\",\"actions\",\"done\"} (or the plan JSON you were asked for) — no prose before or after it.";
 const CUT_OFF = "Your previous reply was cut off before the JSON ended. Reply again with the complete JSON object only, using at most 3 actions and keeping each file short (split big files across turns).";
 
 /**
@@ -125,6 +131,11 @@ async function callChain<T>(chain: ModelTarget[], messages: Msg[], opts: CallOpt
       if (value === null && r.finish === "length") {
         console.warn(`[ai] ${t.provider}/${t.id} hit the output limit (${r.text.length} chars); retrying shorter`);
         r = await callRaw(t, [...messages, { role: "user", content: CUT_OFF }], opts);
+        value = r.text ? accept(r.text) : null;
+      } else if (value === null && r.text && opts.json) {
+        // A complete reply in prose (no JSON) gets one reminder on the same model before falling back.
+        console.warn(`[ai] ${t.provider}/${t.id} replied without JSON (${r.text.length} chars); asking again for JSON`);
+        r = await callRaw(t, [...messages, { role: "assistant", content: r.text.slice(0, 2000) }, { role: "user", content: NOT_JSON }], opts);
         value = r.text ? accept(r.text) : null;
       }
       if (value === null) {

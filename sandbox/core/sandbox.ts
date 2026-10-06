@@ -207,7 +207,22 @@ export class Sandbox {
   serialize(workspace: Record<string, unknown>): PersistedSandboxState {
     return { version: 2, sandbox: this.info, local: { files: this.workspace.files.list(), folders: this.workspace.files.folders() }, output: this.outputRecord, editor: this.session.toState(), workspace, localChangedAt: this.localChangedAt, outputRev: this.outputRev };
   }
-  save(workspace: Record<string, unknown>): void { this.persistence.saveState(serializeState(this.serialize(workspace))); }
+  /**
+   * Persists only device UI state. The sandbox is a temporary workspace: project files, editor buffers and .output are
+   * never written to device storage, so a reopened project is always rebuilt from the persistent server codebase.
+   */
+  save(workspace: Record<string, unknown>): void {
+    this.persistence.saveState(serializeState({ ...this.serialize(workspace), local: { files: [], folders: [] }, output: null, editor: { openFiles: [], activeFile: null, buffers: [] }, localChangedAt: 0, outputRev: 0 }));
+  }
+  /** Removes the temporary workspace from memory (project closed): files, folders, open buffers and .output. */
+  clearTemporary(): void {
+    for (const p of [...this.session.buffers.keys()]) this.session.close(p);
+    this.session.active = null;
+    this.workspace.files.clear();
+    this.output.clear();
+    this.outputRecord = null;
+    this.localChangedAt = 0; this.outputRev = 0;
+  }
   private applyState(s: PersistedSandboxState): void {
     restoreSnapshot(this.workspace.files, s.local);
     if (s.output) { writeOutput(this.output, s.output); this.outputRecord = s.output; }

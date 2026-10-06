@@ -38,7 +38,7 @@ export interface WorkspaceView {
   actions: WorkspaceAction[]; snapshots: SnapshotSummary[]; preview: PreviewState; previewPages: string[];
   savedAt: number | null; runs: AgentRun[];
 }
-interface PersistedWorkspace { expanded: string[]; selected: string | null; actions: WorkspaceAction[]; previewPage: string; previewError: string | null; runs?: AgentRun[] }
+interface PersistedWorkspace { expanded: string[]; selected: string | null; actions: WorkspaceAction[]; previewPage: string; previewError: string | null; runs?: AgentRun[]; hadOutput?: boolean }
 
 const MAX_ACTIONS = 300;
 const describe = (c: FileChange): string => (c.kind === "rename" ? `${c.from} → ${c.to}` : `${c.kind} ${c.path}`);
@@ -67,6 +67,7 @@ export class WorkspaceStore {
   private savedAt: number | null = null;
   private initError: string | null = null;
   private offEvents: () => void;
+  private rebuildPreview = false;
 
   constructor(readonly projectId: string, userId: string) {
     this.sandbox = new Sandbox(createContext(projectId, userId));
@@ -86,6 +87,7 @@ export class WorkspaceStore {
     this.selected = w.selected ?? null;
     this.previewPage = w.previewPage ?? "index.html";
     this.previewError = w.previewError ?? null;
+    this.rebuildPreview = !!w.hadOutput;
     this.runs = (w.runs ?? []).map((r) => (r.status === "running" && r.snapshotId?.startsWith("rev:") ? r : r.status === "running" ? { ...r, status: "stopped", endedAt: r.endedAt ?? Date.now(), error: "Interrupted — the workspace was closed before it finished." } : r));
     // Actions that were still running when the workspace closed did not finish; say so.
     this.actions = (w.actions ?? []).map((a) => (a.status === "running" || a.status === "queued"
@@ -131,7 +133,7 @@ export class WorkspaceStore {
 
   // ---- persistence ----
   private persisted(): PersistedWorkspace {
-    return { expanded: [...this.expanded], selected: this.selected, actions: this.actions.slice(-MAX_ACTIONS), previewPage: this.previewPage, previewError: this.previewError, runs: this.runs.slice(-50) };
+    return { expanded: [...this.expanded], selected: this.selected, actions: this.actions.slice(-MAX_ACTIONS), previewPage: this.previewPage, previewError: this.previewError, runs: this.runs.slice(-50), hadOutput: !!this.sandbox.lastOutput || this.rebuildPreview };
   }
   private schedulePersist(): void {
     if (this.saveTimer) clearTimeout(this.saveTimer);
@@ -264,7 +266,9 @@ export class WorkspaceStore {
   /** Replaces local files with the server codebase (server wins). */
   applyServerTree(files: { path: string; content: string; encoding: "utf8" | "base64"; updatedAt: number }[], folders: string[]): void {
     if (this.sandbox.state.phase !== "ready") return;
-    try { this.sandbox.replaceLocal(files, folders); } catch (e) { this.fail(e instanceof Error ? e.message : "Couldn't load project files"); this.emit(); }
+    try { this.sandbox.replaceLocal(files, folders); } catch (e) { this.fail(e instanceof Error ? e.message : "Couldn't load project files"); this.emit(); return; }
+    // The preview output is temporary too: rebuild it once from the freshly loaded files when the project had one.
+    if (this.rebuildPreview && files.length) { this.rebuildPreview = false; try { this.sandbox.generateOutput(); } catch { /* preview stays empty */ } this.emit(); }
   }
   reportRemoteError(message: string): void { this.fail(message); this.emit(); }
 
@@ -444,9 +448,11 @@ export class WorkspaceStore {
     });
   }
 
+  /** Project closed: save device UI state, then remove the temporary sandbox workspace (files, buffers, .output). */
   dispose(): void {
     this.flush();
     this.offEvents();
+    this.sandbox.clearTemporary();
     if (this.sandbox.state.phase === "ready") this.sandbox.dispose();
     this.listeners.clear();
   }

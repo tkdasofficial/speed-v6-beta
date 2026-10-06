@@ -93,7 +93,7 @@ export function validateTsxSyntax(file: string, code: string): Diagnostic[] {
   try {
     const out = transform(code, { transforms: /\.tsx?$/i.test(file) ? ["typescript", "jsx"] : ["jsx"], production: true, filePath: file }).code;
     const ast = parse(out, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true, locations: true });
-    return undefinedNames(file, ast as unknown as AstNode);
+    return [...undefinedNames(file, ast as unknown as AstNode), ...useBeforeInit(file, ast as unknown as AstNode)];
   } catch (e) {
     const err = e as { message: string; loc?: { line: number; column: number } };
     return [d({ type: "syntax_error", file, line: err.loc?.line ?? 1, column: (err.loc?.column ?? 0) + 1, message: err.message.replace(/\s*\(\d+:\d+\)$/, ""), code: "TS_SYNTAX_ERROR" })];
@@ -139,6 +139,64 @@ function undefinedNames(file: string, ast: AstNode): Diagnostic[] {
   };
   walk(ast, true);
   return used.filter((u) => !bound.has(u.name) && !JS_GLOBALS.has(u.name)).slice(0, 5).map((u) => d({ type: "syntax_error", file, line: u.node.loc?.start.line ?? 1, column: (u.node.loc?.start.column ?? 0) + 1, message: `${u.name} is not defined — the page crashes with "ReferenceError: ${u.name} is not defined"`, code: "UNDEFINED_NAME" }));
+}
+
+/** A top-level const/let/class read while the module is still initializing, before its declaration, throws
+ *  "Cannot access 'X' before initialization" in the browser (blank page). Function bodies run later, so they're skipped. */
+function useBeforeInit(file: string, ast: AstNode): Diagnostic[] {
+  const body = (ast["body"] as AstNode[]) ?? [];
+  const declAt = new Map<string, number>();
+  body.forEach((st, i) => {
+    const decl = st.type === "ExportNamedDeclaration" || st.type === "ExportDefaultDeclaration" ? (st["declaration"] as AstNode | null) : st;
+    if (decl?.type === "VariableDeclaration" && decl["kind"] !== "var") for (const v of decl["declarations"] as AstNode[]) { const id = v["id"] as AstNode; if (id.type === "Identifier") declAt.set(id["name"] as string, i); }
+    else if (decl?.type === "ClassDeclaration" && decl["id"]) declAt.set((decl["id"] as AstNode)["name"] as string, i);
+  });
+  const out: Diagnostic[] = [];
+  const eager = (n: unknown, i: number): void => {
+    if (!n || typeof n !== "object" || out.length >= 3) return;
+    if (Array.isArray(n)) { for (const c of n) eager(c, i); return; }
+    const x = n as AstNode;
+    if (/^(FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ClassBody)$/.test(x.type)) return;
+    if (x.type === "Identifier") {
+      const j = declAt.get(x["name"] as string);
+      if (j !== undefined && j > i) out.push(d({ type: "runtime_error", file, line: x.loc?.start.line ?? 1, column: (x.loc?.start.column ?? 0) + 1, message: `${x["name"]} is used before it is declared — the page crashes with "Cannot access '${x["name"]}' before initialization". Move its declaration above this line.`, code: "USE_BEFORE_INIT" }));
+      return;
+    }
+    for (const k of Object.keys(x)) {
+      if (k === "loc" || typeof x[k] !== "object") continue;
+      if ((x.type === "MemberExpression" && k === "property" && !x["computed"]) || (x.type === "Property" && k === "key" && !x["computed"]) || (x.type === "VariableDeclarator" && k === "id")) continue;
+      if (/^Import/.test(x.type) || (x.type === "ExportNamedDeclaration" && k === "specifiers")) continue;
+      eager(x[k], i);
+    }
+  };
+  body.forEach((st, i) => eager(st, i));
+  return out;
+}
+
+/** Deterministic repair for USE_BEFORE_INIT: moves each late top-level declaration (whole statement, by line — sucrase
+ *  keeps line numbers) above the first statement that reads it. Returns the fixed code, or null when nothing changed
+ *  or the result would still be wrong; the AI never has to move code blocks by hand. */
+export function fixUseBeforeInit(file: string, code0: string): string | null {
+  let code = code0;
+  for (let pass = 0; pass < 6; pass++) {
+    let ast: AstNode;
+    try {
+      const out = transform(code, { transforms: /\.tsx?$/i.test(file) ? ["typescript", "jsx"] : ["jsx"], production: true, filePath: file }).code;
+      ast = parse(out, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true, locations: true }) as unknown as AstNode;
+    } catch { return null; }
+    const issue = useBeforeInit(file, ast)[0];
+    if (!issue) return code === code0 ? null : code;
+    const name = /^(\S+) is used/.exec(issue.message)?.[1];
+    const body = ast["body"] as (AstNode & { loc: { start: { line: number }; end: { line: number } } })[];
+    const user = body.find((st) => st.loc.start.line <= issue.line && st.loc.end.line >= issue.line);
+    const decl = body.find((st) => { const dd = /^Export/.test(st.type) ? (st["declaration"] as AstNode | null) : st; return dd?.type === "VariableDeclaration" ? (dd["declarations"] as AstNode[]).some((v) => (v["id"] as AstNode)["name"] === name) : dd?.type === "ClassDeclaration" && (dd["id"] as AstNode | null)?.["name"] === name; });
+    if (!user || !decl || decl.loc.start.line <= user.loc.start.line) return null;
+    const lines = code.split("\n");
+    const block = lines.splice(decl.loc.start.line - 1, decl.loc.end.line - decl.loc.start.line + 1);
+    lines.splice(user.loc.start.line - 1, 0, ...block, "");
+    code = lines.join("\n");
+  }
+  return null;
 }
 
 export function validateTs(file: string): Diagnostic[] {

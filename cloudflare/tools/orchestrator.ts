@@ -40,6 +40,12 @@ export class ToolSession {
   constructor(readonly o: SessionOpts) { o.signal?.addEventListener("abort", () => this.abort.abort()); }
 
   get pendingChanges() { return [...this.dirty]; }
+  /** Deterministic in-place repair of the working copy (no AI); `fix` returns new content or null. Changed files join the next commit. */
+  async autoFix(paths: string[], fix: (path: string, content: string) => string | null): Promise<string[]> {
+    const store = await this.files(); const done: string[] = [];
+    for (const p of paths) { const f = store.get(p); if (!f || f.encoding === "base64") continue; const n = fix(p, f.content); if (n !== null && n !== f.content) { store.set({ ...f, content: n }); this.dirty.add(p); done.push(p); } }
+    return done;
+  }
   cancel() { this.abort.abort(); }
 
   private async files() {

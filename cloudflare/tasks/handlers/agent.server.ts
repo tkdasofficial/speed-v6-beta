@@ -299,6 +299,14 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
     if (r.ok && target && (name === "write_file" || name === "create_file") && !existing.has(target)) created.add(target);
   }
   st.created = [...created].slice(0, 200);
+  // Declarations used before they exist crash the page; reorder them deterministically before checking.
+  if (!stopped) {
+    const { fixUseBeforeInit } = await import("../../../sandbox/intelligence/validate");
+    const lastErr = log.filter((l) => /USE_BEFORE_INIT/.test(l)).slice(-1)[0] ?? "";
+    const flagged = [...lastErr.matchAll(/"file":"([^"]+)"/g)].map((m) => m[1]!);
+    const moved = await sess.autoFix([...new Set([...sess.pendingChanges, ...flagged])].filter((p) => /\.[jt]sx?$/.test(p)), fixUseBeforeInit);
+    if (moved.length) log.push(`(automatic) Moved declarations above their first use in ${moved.join(", ")} (they were used before being defined).`);
+  }
   const wrote = sess.pendingChanges.length > 0;
   if (wrote && built === null && !stopped) {
     const r = await act(c, st, { kind: "check", running: "Checking project", done: "Check passed", failed: "Check failed", round }, async () => {

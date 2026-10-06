@@ -47,6 +47,8 @@ type CallResult = { text: string; finish: string };
 
 // Providers that just refused (bad key / rate limit) are skipped for a while instead of being hit on every call.
 const cooldown = new Map<string, number>();
+/** Test hook: forget refusals. */
+export const resetAiCooldowns = () => cooldown.clear();
 const cooling = (t: ModelTarget) => (cooldown.get(t.provider) ?? 0) > Date.now();
 
 async function callRaw(t: ModelTarget, messages: Msg[], opts: CallOpts): Promise<CallResult> {

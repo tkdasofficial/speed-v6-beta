@@ -8,7 +8,7 @@ import { d1 } from "../d1";
 import { apiOrigin, RUNTIME_REPO } from "./pipeline.server";
 import { IGNORED } from "./hash";
 
-export const JOB_KINDS = ["install", "build", "typecheck", "lint", "test", "format", "script", "command", "dev"] as const;
+export const JOB_KINDS = ["install", "build", "typecheck", "lint", "test", "format", "script", "command", "dev", "preview"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 const WORKFLOW = "run.yml";
 const TTL_MS = 20 * 60_000;
@@ -71,7 +71,7 @@ export async function getJob(userId: string, projectId: string, id: string) {
   const cmd = r.kind === "command" && r.script ? (JSON.parse(r.script) as { program: string; args: string[] }) : null;
   return {
     id: r.id, kind: r.kind, script: r.kind === "script" ? r.script : null, command: cmd ? [cmd.program, ...cmd.args].join(" ") : null, status: r.status, exitCode: r.exit_code,
-    output: r.output, stdout: r.stdout, stderr: r.stderr, diagnostics: r.diagnostics ? (JSON.parse(r.diagnostics) as unknown[]) : [], changedFiles: r.files ? (JSON.parse(r.files) as string[]) : [],
+    output: r.output, stdout: r.stdout, stderr: r.stderr, diagnostics: r.kind !== "preview" && r.diagnostics ? (JSON.parse(r.diagnostics) as unknown[]) : [], changedFiles: r.kind !== "preview" && r.files ? (JSON.parse(r.files) as string[]) : [],
     phase: r.phase, stopRequested: !!r.stop_requested, heartbeatAt: r.heartbeat_at, process: r.process_info ? (JSON.parse(r.process_info) as Record<string, unknown>) : null,
     createdAt: r.created_at, completedAt: r.completed_at,
   };
@@ -105,7 +105,7 @@ export async function serveJob(req: Request, id: string): Promise<Response> {
   if (tree.unchanged) throw new JobError("Project files unavailable", 500);
   const files = tree.files.filter((f) => !IGNORED.test(f.path)).map((f) => ({ path: f.path, content: f.content, encoding: f.encoding }));
   const env: Record<string, string> = {};
-  if (r.kind === "build" || r.kind === "test" || r.kind === "script" || r.kind === "command" || r.kind === "dev") {
+  if (r.kind === "build" || r.kind === "test" || r.kind === "script" || r.kind === "command" || r.kind === "dev" || r.kind === "preview") {
     const { openEnv } = await import("../../tools/catalog/deps");
     for (const e of await d1<{ name: string; value_enc: string }>("SELECT name, value_enc FROM project_env WHERE project_id = ?", [r.project_id])) env[e.name] = await openEnv(r.project_id, e.value_enc);
   }
@@ -125,7 +125,7 @@ export async function processEvent(req: Request, id: string): Promise<Response> 
   return Response.json({ stop: !!r.stop_requested });
 }
 
-type Result = { ok?: boolean; exitCode?: number; output?: string; stdout?: string; stderr?: string; phase?: string; diagnostics?: unknown[]; files?: { path: string; content: string }[] };
+type Result = { preview?: { stage?: string; views?: { screenshot?: string | null }[] } & Record<string, unknown>; ok?: boolean; exitCode?: number; output?: string; stdout?: string; stderr?: string; phase?: string; diagnostics?: unknown[]; files?: { path: string; content: string }[] };
 /** Runtime reports the real exit code/output. Single-use: the token is cleared on the first report. */
 export async function acceptJob(req: Request, id: string): Promise<Response> {
   const r = await authorize(req, id);
@@ -154,6 +154,16 @@ export async function acceptJob(req: Request, id: string): Promise<Response> {
     } catch (e) { b.output = `${b.output ?? ""}\nCould not apply returned files: ${(e as Error).message}`; }
   }
   const { redact } = await import("../../tools/policy");
+  if (r.kind === "preview") {
+    // Preview verification: compact browser diagnostics go to `diagnostics`; screenshots are held only temporarily in
+    // `files` until the agent analyzes them (functions/preview/verify.server.ts clears them), never in the agent D1.
+    const pv = b.preview ?? { stage: "unknown" };
+    const shots = (pv.views ?? []).map((v, i) => ({ i, data: typeof v.screenshot === "string" && v.screenshot.length < 900_000 ? v.screenshot : null }));
+    const diag = { ...pv, views: (pv.views ?? []).map(({ screenshot: _s, ...v }) => v) };
+    await d1("UPDATE runtime_jobs SET status = ?, exit_code = ?, output = ?, diagnostics = ?, files = ?, completed_at = datetime('now') WHERE id = ?",
+      [b.ok ? "succeeded" : "failed", typeof b.exitCode === "number" ? b.exitCode : b.ok ? 0 : 1, redact(String(b.output ?? "")).slice(-30_000), redact(JSON.stringify(diag)).slice(0, 60_000), JSON.stringify(shots), id]);
+    return Response.json({ ok: true });
+  }
   await d1("UPDATE runtime_jobs SET status = ?, exit_code = ?, output = ?, stdout = ?, stderr = ?, phase = CASE WHEN kind = 'dev' THEN ? ELSE phase END, diagnostics = ?, files = ?, completed_at = datetime('now') WHERE id = ?",
     [b.ok ? "succeeded" : "failed", typeof b.exitCode === "number" ? b.exitCode : b.ok ? 0 : 1, redact(String(b.output ?? "")).slice(-60_000),
       b.stdout != null ? redact(String(b.stdout)).slice(-40_000) : null, b.stderr != null ? redact(String(b.stderr)).slice(-40_000) : null,

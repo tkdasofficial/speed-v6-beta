@@ -17,7 +17,8 @@ const MAX_ROUNDS = 12;
 const MAX_REPAIRS = 3; // failed checks inside the build loop before giving up
 const MAX_FIX_ATTEMPTS = 3; // validation/test → fix → retest cycles
 type Step = { kind: "read" | "create" | "edit" | "delete" | "think" | "check" | "tool"; path?: string; content?: string; find?: string; replace?: string; note?: string; name?: string; args?: Record<string, unknown> };
-type Phase = "planning" | "awaiting" | "building" | "validating";
+type Phase = "planning" | "awaiting" | "building" | "validating" | "previewing";
+const MAX_VISUAL_REPAIRS = 3; // preview verification → repair → rebuild → re-verify cycles
 type State = {
   phase?: Phase; changed?: string[]; created?: string[]; lastCheck?: boolean | null; round?: number; results?: string; failedBuilds?: number;
   failedIds?: string[]; baseRevision?: number; mutated?: boolean; plan?: AgentPlan; planVersion?: number; decisionSeq?: number;
@@ -25,6 +26,8 @@ type State = {
   /** Agent Core: analyzed sub-tasks, batches (with their agent_steps ids), relevant files and summary status. */
   ag?: { tasks: SubTask[]; batches: Batch[]; batchSteps: Record<string, string>; relevant?: string[] };
   finalSummaryStatus?: string;
+  /** Visual preview verification (React/Vite): current runtime job, cycle count and the reported outcome. */
+  previewJob?: string | null; previewStartedAt?: number; visualAttempts?: number; preview?: string;
 };
 type P = { prompt?: string; model?: "speed" | "flash" | "heavy"; depth?: "quick" | "balanced" | "deep"; plan?: boolean; clientMessageId?: string; parentRunId?: string };
 
@@ -351,7 +354,7 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
   const pid = c.task.project_id!;
   const fs = await import("../../sandbox/fs.server");
   const { store } = await fs.loadStore(pid);
-  const { validateProject, validateReferences } = await import("../../../sandbox/intelligence/validate");
+  const { validateProject, validateReferences, isViteProject } = await import("../../../sandbox/intelligence/validate");
   const sess = await session(c);
   await phase(c, "validating");
   await c.progress(0.8, "Validating");
@@ -406,12 +409,27 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
     if (!t.ok) issues = [t.error ?? "Build test failed"];
   }
   if (!issues.length) {
+    // React/Vite: a passing build only proves the code compiles; the task completes only after the real preview has
+    // been opened in a browser and verified (previewStep). Plain HTML projects keep the static checks.
+    if (isViteProject(store) && !st.preview?.startsWith("Passed")) {
+      st.phase = "previewing"; st.previewJob = null;
+      return { done: false, delayMs: 10 };
+    }
+    return complete(c, st, store);
+  }
+  return repair(c, st, store, issues);
+}
+
+async function complete(c: TaskContext, st: State, store: MemoryFileStore): Promise<StepResult> {
+  const plan = st.plan;
+  const ar = await AgentRun.for(c);
+  {
     const created = (st.created ?? []).filter((f) => store.get(f));
     const modified = (st.changed ?? []).filter((f) => !created.includes(f) && store.get(f));
     const deleted = (st.changed ?? []).filter((f) => !store.get(f));
     const feats = [...(plan?.pages ?? []), ...(plan?.functional ?? []), ...(plan?.design ?? [])].slice(0, 8);
     const list = (h: string, l: string[]) => (l.length ? `${h}:\n${l.slice(0, 20).map((x) => `- ${x}`).join("\n")}` : "");
-    const text = ["Build Complete", plan?.summary || plan?.title || "", list("Implemented", feats), list("Files created", created), list("Files modified", modified), list("Files deleted", deleted), `Validation: ${st.validation}\nBuild/Test: ${st.test ?? "Passed"}`].filter(Boolean).join("\n\n");
+    const text = ["Build Complete", plan?.summary || plan?.title || "", list("Implemented", feats), list("Files created", created), list("Files modified", modified), list("Files deleted", deleted), `Validation: ${st.validation}\nBuild/Test: ${st.test ?? "Passed"}${st.preview ? `\nPreview: ${st.preview}` : ""}`].filter(Boolean).join("\n\n");
     // The run's single final-summary AI call, over the structured, verified result. Falls back to the factual text.
     const sid = await ar.step({ type: "summary", name: "Final summary" });
     let finalText = text; const t0 = Date.now();
@@ -419,7 +437,7 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
       const { finalSummary } = await import("../../functions/ai/orchestrator.server");
       const r = await finalSummary({ model: (c.payload as P).model ?? "speed", result: {
         request: (c.payload as P).prompt ?? "", tasks: (st.ag?.tasks ?? []).map((t) => t.text), batches: (st.ag?.batches ?? []).map((b) => ({ id: b.id, kind: b.kind, tasks: b.taskIds.length })),
-        filesCreated: created, filesModified: modified, filesDeleted: deleted, planned: feats, validation: st.validation, buildTest: st.test ?? "Passed",
+        filesCreated: created, filesModified: modified, filesDeleted: deleted, planned: feats, validation: st.validation, buildTest: st.test ?? "Passed", ...(st.preview ? { previewVerification: st.preview } : {}),
       } });
       finalText = r.text; st.finalSummaryStatus = "generated";
       await ar.usage({ stepId: sid, provider: r.provider, model: r.model, requestType: "final_summary", latencyMs: r.latencyMs, status: "succeeded", metadata: { fallbacks: r.fallbacks } });
@@ -431,6 +449,10 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
     }
     return end(c, st, "done", finalText);
   }
+}
+
+async function repair(c: TaskContext, st: State, store: MemoryFileStore, issues: string[]): Promise<StepResult> {
+  const ar = await AgentRun.for(c);
   st.fixAttempts = (st.fixAttempts ?? 0) + 1;
   if (st.fixAttempts <= MAX_FIX_ATTEMPTS) {
     await ar.step({ type: "recover", name: `Automatic fix ${st.fixAttempts}/${MAX_FIX_ATTEMPTS}`, status: "succeeded", metadata: { issues: issues.slice(0, 6) } });
@@ -447,6 +469,88 @@ async function validateStep(c: TaskContext, st: State): Promise<StepResult> {
   const named = [...new Set(issues.join("\n").match(/[\w@.\/-]+\.(?:tsx?|jsx?|css|html?|json)\b/g) ?? [])].filter((f) => store.get(f)).slice(0, 4);
   const attached = named.map((f) => `--- ${f} (current content)\n${store.get(f)!.content.slice(0, 3000)}`).join("\n");
   st.results = `VALIDATION FAILED (fix attempt ${st.fixAttempts}/${MAX_FIX_ATTEMPTS}). Fix exactly these problems with targeted edits (copy find-text exactly from the contents below, or rewrite the file with "content"), then set done:\n${issues.map((i) => `- ${i}`).join("\n")}${attached ? `\n${attached}` : ""}`;
+  st.round = Math.min(st.round ?? 0, MAX_ROUNDS - 4);
+  await phase(c, "building");
+  return { done: false, delayMs: 10 };
+}
+
+// ---------------- visual preview verification ----------------
+// Real build → vite preview → headless Chromium (desktop + mobile screenshots, console/page errors, failed requests,
+// DOM state) in the runtime, then deterministic checks + vision analysis. FAIL feeds the diagnosis and the current
+// text of the affected files back into building; PASS (or an honest "could not verify") completes the task.
+async function previewStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
+  const pid = c.task.project_id!;
+  const pv = await import("../../functions/preview/verify.server");
+  const ar = await AgentRun.for(c);
+  if (!st.previewJob) {
+    await phase(c, "testing");
+    await c.progress(0.92, "Verifying preview");
+    const s = await act(c, st, { kind: "check", running: "Starting preview in browser", done: "Preview check started", failed: "Couldn't start preview check" }, async () => {
+      try { const r = await pv.startPreview(c.task.user_id, pid); return { ok: true, result: r.jobId }; }
+      catch (e) { return { ok: false, error: (e as Error).message.slice(0, 300) }; }
+    });
+    if (!s.ok) {
+      // Another runtime job for this project may still be running: try again shortly, then report honestly.
+      if (/still running|already running/i.test(s.error ?? "") && (st.n = (st.n ?? 0) + 1) < 20) return { done: false, delayMs: 15_000 };
+      st.preview = `Not verified (${s.error ?? "preview check could not start"})`;
+      const { store } = await (await import("../../sandbox/fs.server")).loadStore(pid);
+      return complete(c, st, store);
+    }
+    st.n = 0;
+    st.previewJob = s.result as string; st.previewStartedAt = Date.now();
+    return { done: false, delayMs: 30_000 };
+  }
+  if (await c.cancelled()) return { done: false, delayMs: 10 };
+  const read = await pv.readPreview(pid, st.previewJob);
+  if (read && !read.done && Date.now() - (st.previewStartedAt ?? 0) < pv.PREVIEW_TIMEOUT_MS) {
+    await c.progress(0.93, "Verifying preview in browser");
+    return { done: false, delayMs: 15_000 };
+  }
+  const jobId = st.previewJob;
+  st.previewJob = null;
+  const fs = await import("../../sandbox/fs.server");
+  const { store } = await fs.loadStore(pid);
+  const files = store.list().map((f) => f.path).filter((f) => !/^(node_modules|\.output|dist)\//.test(f));
+  const requirements = [p.prompt ?? "", st.plan?.summary ?? "", ...(st.plan?.pages ?? []), ...(st.plan?.functional ?? [])].filter(Boolean).join("\n").slice(0, 2000);
+  const vid = await ar.step({ type: "verify", name: "Visual preview verification", batchId: batchOf(st) });
+  const t0 = Date.now();
+  const a = await act(c, st, { kind: "check", running: "Analyzing preview screenshots", done: "Preview verified", failed: "Preview check failed" }, async () => {
+    if (!read || !read.done) return { ok: false, result: null, error: "The preview check did not finish in time." };
+    try {
+      const o = await pv.evaluatePreview(read, requirements, files);
+      return o.status === "FAIL" ? { ok: false, result: o, error: o.verdict.diagnosis } : { ok: true, result: o, done: o.status === "UNVERIFIABLE" ? "Preview not verified" : o.vision ? "Preview verified" : "Preview rendered" };
+    } finally { await pv.clearScreenshots(jobId).catch(() => undefined); }
+  });
+  const o = a.result as import("../../functions/preview/analyze").PreviewOutcome | null | undefined;
+  // Compact metadata only (no screenshots) in the agent D1.
+  const meta = { jobId, status: o?.status ?? "TIMEOUT", issueType: o?.verdict.issueType ?? "loading_stuck", severity: o?.verdict.severity ?? "high", diagnosis: (o?.verdict.diagnosis ?? a.error ?? "").slice(0, 400), confidence: o?.verdict.confidence ?? 0, provider: o?.vision?.provider ?? null, model: o?.vision?.model ?? null, deterministic: o?.deterministic ?? true, attempt: (st.visualAttempts ?? 0) + 1, visionNote: o?.visionNote?.slice(0, 300) ?? null };
+  await ar.finishStep(vid, { status: a.ok ? "succeeded" : "failed", error: a.ok ? null : meta.diagnosis });
+  if (o?.vision) await ar.usage({ stepId: vid, provider: o.vision.provider, model: o.vision.model, requestType: "visual_verification", latencyMs: Date.now() - t0, status: "succeeded", metadata: meta });
+  await ar.progress({ type: "test", ok: a.ok, ...(a.ok ? {} : { error: meta.diagnosis }) }, vid);
+  if (o && o.status !== "FAIL") {
+    st.preview = o.status === "UNVERIFIABLE" ? `Not verified (${(o.visionNote ?? "browser check unavailable").slice(0, 200)})` : o.vision ? `Passed (rendered on desktop and mobile; visual check by ${o.vision.provider})` : `Passed (rendered with no runtime errors; visual AI check unavailable${o.visionNote ? `: ${o.visionNote.slice(0, 160)}` : ""})`;
+    return complete(c, st, store);
+  }
+  // FAIL (or timeout): repair with the real evidence and the current file contents, then rebuild and re-verify.
+  st.visualAttempts = (st.visualAttempts ?? 0) + 1;
+  const v = o?.verdict;
+  const diagnosis = v?.diagnosis || a.error || "The preview did not render.";
+  st.preview = `Failed: ${diagnosis.slice(0, 200)}`;
+  if (st.visualAttempts > MAX_VISUAL_REPAIRS) {
+    return end(c, st, "failed", `Not finished. The website builds, but the preview still has a problem after ${MAX_VISUAL_REPAIRS} automatic fixes:\n\n- ${diagnosis}${v?.evidence.length ? `\n- Evidence: ${v.evidence.slice(0, 2).join(" · ").slice(0, 400)}` : ""}`, "Preview verification failed after automatic fixes.");
+  }
+  await ar.step({ type: "recover", name: `Preview fix ${st.visualAttempts}/${MAX_VISUAL_REPAIRS}`, status: "succeeded", metadata: { issueType: meta.issueType, diagnosis: meta.diagnosis } });
+  await tell(c, st, { type: "fix", attempt: st.visualAttempts, max: MAX_VISUAL_REPAIRS, issues: [diagnosis] });
+  const want = [...(v?.suggestedFiles ?? []), "src/App.tsx", "src/main.tsx", "src/App.jsx", "src/main.jsx"].filter((f, i, all) => store.get(f) && all.indexOf(f) === i).slice(0, 3);
+  const attached = want.map((f) => `--- ${f} (current content, numbered)\n${store.get(f)!.content.split("\n").map((l, i) => `${i + 1}| ${l}`).join("\n").slice(0, 7000)}`).join("\n");
+  st.results = [`PREVIEW VERIFICATION FAILED (fix ${st.visualAttempts}/${MAX_VISUAL_REPAIRS}). The project builds, but in a real browser: ${diagnosis}`,
+    v?.issueType ? `Issue type: ${v.issueType} (${v.severity})` : "",
+    v?.evidence.length ? `Evidence:\n${v.evidence.map((e) => `- ${e}`).join("\n")}` : "",
+    v?.suggestedFix ? `Suggested fix: ${v.suggestedFix}` : "",
+    `Original request: ${(p.prompt ?? "").slice(0, 600)}`,
+    "Fix the real cause with targeted edits (copy find-text exactly from the numbered contents below, without line numbers, or rewrite a short file with \"content\"), then set done. Do not re-read these files.",
+    attached].filter(Boolean).join("\n");
+  st.phase = "building";
   st.round = Math.min(st.round ?? 0, MAX_ROUNDS - 4);
   await phase(c, "building");
   return { done: false, delayMs: 10 };
@@ -484,6 +588,7 @@ export const agentHandler: TaskHandler = {
       case "awaiting": return decisionStep(c, st);
       case "building": return buildStep(c, st, p);
       case "validating": return validateStep(c, st);
+      case "previewing": return previewStep(c, st, p);
     }
   },
   async onCancel(c) {

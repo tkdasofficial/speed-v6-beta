@@ -8,7 +8,7 @@ export type ModelRole = "speed" | "flash" | "heavy";
 /** `maxOut` keeps each request safely below the provider's free-tier output budget (a cap, never a target). */
 export const PROVIDERS: Record<Provider, { url: string; secret: string; maxOut: number }> = {
   gemini: { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", secret: "GEMINI_API_KEY", maxOut: 8_000 },
-  groq: { url: "https://api.groq.com/openai/v1/chat/completions", secret: "GROQ_API_KEY", maxOut: 8_000 },
+  groq: { url: "https://api.groq.com/openai/v1/chat/completions", secret: "GROQ_API_KEY", maxOut: 3_000 },
   nvidia: { url: "https://integrate.api.nvidia.com/v1/chat/completions", secret: "NVIDIA_API_KEY", maxOut: 3_000 },
 };
 

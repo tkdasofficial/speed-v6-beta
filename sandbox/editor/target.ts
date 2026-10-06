@@ -92,7 +92,7 @@ function byText(content: string, t: EditTarget, region?: Located): Located {
     const m = all[0]!;
     throw new TargetError("INVALID", `Find-text only matches inside a longer word. The full line is: ${JSON.stringify(clip(content.slice(lineStart(content, m.start), lineEnd(content, m.end))))} — use the whole word or line`);
   }
-  return pick(whole, { ...t, contains: undefined }, content, `Text ${JSON.stringify(clip(f, 60))}`);
+  return pick(whole, { find: t.find, occurrence: t.occurrence }, content, `Text ${JSON.stringify(clip(f, 60))}`);
 }
 
 // ---- TS/TSX via Babel ----

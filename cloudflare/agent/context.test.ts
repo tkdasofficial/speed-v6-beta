@@ -23,3 +23,33 @@ describe("structureIssues", () => {
     expect(r.join()).not.toContain("old.css");
   });
 });
+
+import { validateViteDeps } from "../../sandbox/intelligence/validate";
+import { deterministicVerdict } from "../functions/preview/analyze";
+describe("undeclared packages", () => {
+  const mk = (files: Record<string, string>) => { const m = new Map(Object.entries(files).map(([p, c]) => [p, { path: p, content: c, encoding: "utf8" }])); return { get: (p: string) => m.get(p), list: () => [...m.values()] } as never; };
+  it("flags bare imports missing from package.json, ignores declared/relative/subpaths/types", () => {
+    const s = mk({ "package.json": '{"dependencies":{"react":"18","react-dom":"18","@tanstack/query":"1"}}', "src/App.tsx": 'import { Link } from "react-router-dom";\nimport x from "react-dom/client";\nimport "./a.css";\nimport type { T } from "zod";\nimport q from "@tanstack/query/core";\nconst L = import("lodash");' });
+    const r = validateViteDeps(s).map((x) => x.message).join("\n");
+    expect(r).toContain('"react-router-dom"'); expect(r).toContain('"lodash"');
+    expect(r).not.toContain("react-dom\""); expect(r).not.toContain("zod"); expect(r).not.toContain("tanstack");
+  });
+  it("preview build failure on an unresolved package points at package.json", () => {
+    const v = deterministicVerdict({ stage: "build", error: '[vite]: Rollup failed to resolve import "react-router-dom" from "/w/src/App.tsx".' }) as { suggestedFiles: string[]; diagnosis: string };
+    expect(v.suggestedFiles[0]).toBe("package.json"); expect(v.diagnosis).toContain("react-router-dom");
+  });
+});
+
+import { validateViteSetup } from "../../sandbox/intelligence/validate";
+describe("vite setup", () => {
+  const mk = (files: Record<string, string>) => { const m = new Map(Object.entries(files).map(([p, c]) => [p, { path: p, content: c, encoding: "utf8" }])); return { get: (p: string) => m.get(p), list: () => [...m.values()] } as never; };
+  const base = { "package.json": '{"dependencies":{"react":"18","react-router-dom":"6"}}', "src/main.tsx": 'import App from "./App";\nimport "./styles/index.css";', "src/styles/index.css": "@tailwind base;\n@tailwind utilities;" };
+  it("flags unconfigured tailwind and an unmounted router", () => {
+    const r = validateViteSetup(mk({ ...base, "src/App.tsx": "export default () => <Outlet />", "src/routes.tsx": "createBrowserRouter([])" })).map((x) => x.code);
+    expect(r).toEqual(["TAILWIND_NOT_CONFIGURED", "ROUTER_NOT_MOUNTED"]);
+  });
+  it("passes a fully set-up project", () => {
+    const ok = mk({ ...base, "package.json": '{"dependencies":{"react":"18"},"devDependencies":{"tailwindcss":"^3.4.0","postcss":"8","autoprefixer":"10"}}', "tailwind.config.js": "", "postcss.config.js": "", "src/App.tsx": 'import R from "./routes";\nexport default () => <R />', "src/routes.tsx": "export default () => <Routes></Routes>" });
+    expect(validateViteSetup(ok)).toEqual([]);
+  });
+});

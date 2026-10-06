@@ -53,3 +53,13 @@ describe("vite setup", () => {
     expect(validateViteSetup(ok)).toEqual([]);
   });
 });
+
+import { validateTsxSyntax } from "../../sandbox/intelligence/validate";
+describe("use before init", () => {
+  it("flags a const read before its declaration at module level only", () => {
+    const bad = validateTsxSyntax("src/mock/data.ts", "export const mockData = { transactions: MOCK_TRANSACTIONS };\nexport const MOCK_TRANSACTIONS = [];");
+    expect(bad.map((x) => x.code)).toContain("USE_BEFORE_INIT");
+    const ok = validateTsxSyntax("src/a.tsx", "export const get = () => LATER;\nconst o = { LATER: 1 };\nexport const LATER = 2;\nfunction f() { return LATER; }");
+    expect(ok.filter((x) => x.code === "USE_BEFORE_INIT")).toEqual([]);
+  });
+});

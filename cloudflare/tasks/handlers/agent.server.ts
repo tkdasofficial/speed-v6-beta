@@ -21,7 +21,7 @@ type Phase = "planning" | "awaiting" | "building" | "validating" | "previewing";
 const MAX_VISUAL_REPAIRS = 3; // preview verification → repair → rebuild → re-verify cycles
 type State = {
   phase?: Phase; changed?: string[]; created?: string[]; lastCheck?: boolean | null; round?: number; results?: string; failedBuilds?: number;
-  failedIds?: string[]; baseRevision?: number; mutated?: boolean; plan?: AgentPlan; planVersion?: number; decisionSeq?: number;
+  failedIds?: string[]; failedPatches?: string[]; pendingCreates?: number; baseRevision?: number; mutated?: boolean; plan?: AgentPlan; planVersion?: number; decisionSeq?: number;
   feedback?: string; snippets?: string; fixAttempts?: number; validation?: string; test?: string; n?: number;
   /** Agent Core: analyzed sub-tasks, batches (with their agent_steps ids), relevant files and summary status. */
   ag?: { tasks: SubTask[]; batches: Batch[]; batchSteps: Record<string, string>; relevant?: string[] };
@@ -240,7 +240,7 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   const ar = await AgentRun.for(c);
   const batchId = batchOf(st);
   const roundT0 = Date.now();
-  const step = await withCancel(c, runAgentRound({ model: p.model ?? "speed", depth: p.depth ?? "balanced", plan: false, projectName: proj?.name ?? "project", round, files: store.list().map((f) => f.path).sort(), results: st.results ?? "", history: hist, tools: catalogText("building"), ...(st.plan ? { approvedPlan: planText(st.plan) } : {}) }));
+  const step = await withCancel(c, runAgentRound({ model: p.model ?? "speed", depth: p.depth ?? "balanced", plan: false, projectName: proj?.name ?? "project", round, files: store.list().map((f) => f.path).sort(), results: [st.results ?? "", (await import("../../agent/context")).designTokens(store.list())].filter(Boolean).join("\n"), history: hist, tools: catalogText("building"), ...(st.plan ? { approvedPlan: planText(st.plan) } : {}) }));
   if (!step) return { done: false, delayMs: 10 };
   await c.emit("model", { stage: "build", round, model: step.usedModel, fallbacks: step.fallbacks as unknown as Json });
   const rid = await ar.step({ type: "edit", name: `Build round ${round + 1}`, batchId, description: step.message.slice(0, 500), metadata: { actions: (step.actions as Step[]).length } });
@@ -270,8 +270,11 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
     if (!name) continue;
     const target = typeof args["path"] === "string" ? (args["path"] as string) : typeof args["query"] === "string" ? `"${args["query"] as string}"` : typeof args["name"] === "string" ? (args["name"] as string) : null;
     const L = VERIFY.has(name) ? labels("verify_project", null) : labels(name, target);
+    const sig = /^(update_file|apply_patch|write_file)$/.test(name) ? `${name}:${JSON.stringify(args).length}:${JSON.stringify(args).slice(0, 400)}` : null;
+    if (sig && (st.failedPatches ?? []).includes(sig)) { log.push(`${name}: SKIPPED — this exact edit already failed; read the current file and recalculate the edit`); continue; }
     const r = await act(c, st, { kind: L.kind, running: L.running, done: L.done, failed: L.failed, round }, async () => {
       const res = await ar.tool(sess, name, args, { stepId: rid, batchId });
+      if (!res.success && sig) st.failedPatches = [...(st.failedPatches ?? []), sig].slice(-30);
       log.push(fmt(res));
       // A failed find/replace gets the file's real current text, so the next round can copy it instead of guessing.
       if (!res.success && res.toolName === "update_file" && typeof args["path"] === "string") {
@@ -310,18 +313,37 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
       const fileChanges = r.changed.filter((x) => !folders.has(x));
       await ar.files(fileChanges, r.revision, { stepId: rid, batchId });
       await ar.progress({ type: "applied", files: fileChanges, ok: true }, rid);
+      // Dependency/impact analysis (deterministic, no AI): the next round sees who uses the changed files.
+      try {
+        const { relatedFiles } = await import("../../../sandbox/intelligence/deps");
+        const { impactNote } = await import("../../agent/context");
+        const cur = (await fs.loadStore(pid)).store;
+        const note = impactNote(fileChanges, (f) => relatedFiles(cur, f));
+        if (note) { log.push(note); await c.emit("step", { label: "Checking related files", round }); }
+      } catch { /* impact analysis never blocks a run */ }
     }
   }
   await ar.finishStep(rid, { status: stopped ? "cancelled" : failedIds.length && built !== true ? "failed" : "succeeded", outputRef: `rev:${st.baseRevision ?? 0}`, ...(built === false ? { error: log.filter((l) => /error/i.test(l)).slice(-1)[0]?.slice(0, 600) ?? "Check failed" } : {}) });
   await ar.checkpoint({ stepId: rid, type: "batch", state: { phase: "building", round: round + 1, lastCheck: built, failedBuilds: st.failedBuilds ?? 0 }, completed: st.changed ?? [], pending: (st.ag?.batches ?? []).map((b) => b.id), next: step.done ? "validating" : "building" });
   if (stopped) return { done: false, delayMs: 10 };
   if (built !== null) st.lastCheck = built;
+  // While a new project is still being created, a check that only reports files not written yet (missing entry,
+  // unresolved import) is unfinished work, not a failed repair: list what to create next and don't spend a repair.
+  if (built === false && (st.created ?? []).length && !step.done) {
+    const lastErr = log.filter((l) => /verify_project/.test(l)).slice(-1)[0] ?? "";
+    const types = [...lastErr.matchAll(/"type":"([a-z_]+)"/g)].map((m) => m[1]!);
+    if (types.length && types.every((t) => t === "missing_asset" || t === "broken_import" || t === "missing_file") && (st.pendingCreates = (st.pendingCreates ?? 0) + 1) <= 4) {
+      const refs = [...new Set([...lastErr.matchAll(/(?:resolve|find|missing|No such file:?)\s*"?([\w./-]+\.\w+)"?/gi)].map((m) => m[1]!))].slice(0, 6);
+      log.push(`(automatic) The project is not finished yet — files it references don't exist${refs.length ? `: ${refs.join(", ")}` : ""}. Create the missing files next (e.g. src/main.tsx, src/App.tsx) instead of removing the references.`);
+      built = null; st.lastCheck = null;
+    }
+  }
   if (built === false) {
     const err = log.filter((l) => /error/i.test(l)).slice(-1)[0] ?? "Check failed";
     await ar.progress({ type: "build", ok: false, error: err }, rid);
     if ((st.failedBuilds ?? 0) + 1 < MAX_REPAIRS) { await ar.step({ type: "recover", name: `Repair after failed check (${(st.failedBuilds ?? 0) + 1}/${MAX_REPAIRS})`, parentStepId: rid, status: "succeeded" }); await ar.progress({ type: "retry", what: "the failed check", attempt: (st.failedBuilds ?? 0) + 2, max: MAX_REPAIRS }); }
   } else if (built === true) await ar.progress({ type: "build", ok: true }, rid);
-  if (built === true) { if (failedIds.length) await c.emit("fixed", { ids: failedIds }); st.failedIds = []; st.failedBuilds = 0; }
+  if (built === true) { if (failedIds.length) await c.emit("fixed", { ids: failedIds }); st.failedIds = []; st.failedPatches = []; st.failedBuilds = 0; }
   else st.failedIds = failedIds.slice(-50);
   if (built === false && (st.failedBuilds = (st.failedBuilds ?? 0) + 1) >= MAX_REPAIRS) {
     return end(c, st, "failed", `Not finished. The project check still fails after ${MAX_REPAIRS} repair attempts:\n\n${log.filter((l) => /error/i.test(l)).slice(-1)[0]?.slice(0, 800) ?? "see the failed steps above."}`, `Stopped after ${MAX_REPAIRS} failed repair attempts.`);

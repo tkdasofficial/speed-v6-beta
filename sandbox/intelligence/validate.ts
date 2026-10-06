@@ -65,7 +65,21 @@ export function validateJs(file: string, code: string, module?: boolean): Diagno
   }
 }
 
-export function validateJson(file: string, text: string): Diagnostic[] {
+/** tsconfig/jsconfig and .vscode files are JSONC: comments and trailing commas are valid there (TypeScript and Vite
+ *  accept them), so they are blanked out (keeping positions) before parsing. */
+function stripJsonc(t: string): string {
+  let out = "", i = 0;
+  while (i < t.length) {
+    const c = t[i]!;
+    if (c === '"') { let j = i + 1; while (j < t.length && t[j] !== '"') { if (t[j] === "\\") j++; j++; } out += t.slice(i, j + 1); i = j + 1; continue; }
+    if (c === "/" && t[i + 1] === "/") { const e = t.indexOf("\n", i); const end = e < 0 ? t.length : e; out += " ".repeat(end - i); i = end; continue; }
+    if (c === "/" && t[i + 1] === "*") { const e = t.indexOf("*/", i + 2); const end = e < 0 ? t.length : e + 2; out += t.slice(i, end).replace(/[^\n]/g, " "); i = end; continue; }
+    out += c; i++;
+  }
+  return out.replace(/,(\s*[}\]])/g, " $1");
+}
+export function validateJson(file: string, text0: string): Diagnostic[] {
+  const text = /(^|\/)(tsconfig[\w.-]*|jsconfig[\w.-]*)\.json$|(^|\/)\.vscode\//i.test(file) ? stripJsonc(text0) : text0;
   try { JSON.parse(text); return []; }
   catch (e) {
     const pos = Number(/position (\d+)/.exec((e as Error).message)?.[1] ?? 0);

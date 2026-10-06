@@ -148,3 +148,12 @@ describe("temporary workspace lifecycle", () => {
     expect(a2.read("index.html").content).toBe("<h1>A2</h1>");
   });
 });
+
+import { validateJson } from "../intelligence/validate";
+describe("tsconfig is JSONC", () => {
+  it("accepts comments and trailing commas in tsconfig, still catches a missing comma", () => {
+    expect(validateJson("tsconfig.json", `{\n  // c\n  "a": 1, /* x */\n  "b": [1,],\n}`)).toEqual([]);
+    expect(validateJson("tsconfig.json", `{ "a": 1\n "b": 2 }`).length).toBe(1);
+    expect(validateJson("package.json", `{ "a": 1, }`).length).toBe(1);
+  });
+});

@@ -57,3 +57,33 @@ export function buildContext(i: { request: string; projectId: string; projectNam
 export function contextSnippets(c: AgentContext): string {
   return c.relevantFiles.filter((f) => f.snippet).map((f) => `--- ${f.path}\n${f.snippet}`).join("\n");
 }
+
+/** The project's existing design tokens (CSS custom properties + font families) from its stylesheets, so new UI
+ *  reuses them instead of inventing a new design system. Empty when the project has none. */
+export function designTokens(files: FileLike[], max = 900): string {
+  const css = files.filter((f) => /\.css$/i.test(f.path) && !/(node_modules|\.output|dist)\//.test(f.path))
+    .sort((a, b) => Number(/(^|\/)(styles\/)?(index|global|globals|style|styles|main)\.css$/i.test(b.path)) - Number(/(^|\/)(styles\/)?(index|global|globals|style|styles|main)\.css$/i.test(a.path)));
+  if (!css.length) return "";
+  const vars = new Map<string, string>(); const fonts = new Set<string>(); const media = new Set<string>();
+  for (const f of css) {
+    for (const m of f.content.matchAll(/(--[\w-]+)\s*:\s*([^;}{]+)/g)) if (!vars.has(m[1]!)) vars.set(m[1]!, m[2]!.trim().slice(0, 40));
+    for (const m of f.content.matchAll(/font-family\s*:\s*([^;}{]+)/g)) fonts.add(m[1]!.trim().slice(0, 60));
+    for (const m of f.content.matchAll(/@media\s*([^{]+)\{/g)) media.add(m[1]!.trim().slice(0, 50));
+  }
+  const parts = [`stylesheets: ${css.map((f) => f.path).slice(0, 4).join(", ")}`];
+  if (vars.size) parts.push(`tokens: ${[...vars].slice(0, 30).map(([k, v]) => `${k}: ${v}`).join("; ")}`);
+  if (fonts.size) parts.push(`fonts: ${[...fonts].slice(0, 3).join(" | ")}`);
+  if (media.size) parts.push(`breakpoints: ${[...media].slice(0, 5).join(" | ")}`);
+  return `(automatic, existing design system — reuse it) ${parts.join(". ")}`.slice(0, max);
+}
+
+/** Impact analysis for changed files: who uses them and what they use. Check-only — nothing here asks for edits. */
+export function impactNote(changed: string[], related: (file: string) => { uses: string[]; usedBy: string[] }, max = 1200): string {
+  const lines: string[] = [];
+  for (const f of changed.filter((p) => /\.(tsx?|jsx?|mjs|html?|css)$/i.test(p)).slice(0, 6)) {
+    const r = related(f);
+    if (!r.usedBy.length && !r.uses.length) continue;
+    lines.push(`${f} — used by: ${r.usedBy.slice(0, 6).join(", ") || "nothing"}; uses: ${r.uses.slice(0, 6).join(", ") || "nothing"}`);
+  }
+  return lines.length ? `(automatic impact check — verify these still connect correctly; modify them ONLY if a real problem is found)\n${lines.join("\n")}`.slice(0, max) : "";
+}

@@ -252,6 +252,29 @@ export function validateViteImports(store: FileStore): Diagnostic[] {
   return out;
 }
 
+const BUILTIN_OK = /^(node:|virtual:|~|@\/|\/)/;
+/** Every bare package a source file imports must be listed in package.json; otherwise the real build fails with
+ *  "Rollup failed to resolve import". Reported against package.json so the repair adds the dependency. */
+export function validateViteDeps(store: FileStore): Diagnostic[] {
+  const pkg = store.get("package.json");
+  if (!pkg) return [];
+  let deps: Set<string>;
+  try { const j = JSON.parse(pkg.content) as Record<string, Record<string, string> | undefined>; deps = new Set([...Object.keys(j["dependencies"] ?? {}), ...Object.keys(j["devDependencies"] ?? {}), ...Object.keys(j["peerDependencies"] ?? {})]); } catch { return []; }
+  const aliases = /["']@\/\*?["']|alias/.test(store.get("vite.config.ts")?.content ?? store.get("vite.config.js")?.content ?? "") ? ["@"] : [];
+  const missing = new Map<string, string>();
+  for (const f of store.list().filter((x) => /^src\/.*\.(tsx?|jsx?|mjs)$/.test(x.path) && !/\.d\.ts$/.test(x.path) && x.encoding !== "base64")) {
+    const code = f.content.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    for (const m of code.matchAll(/(?:^|[;\n])\s*(?:import\s+(?:type\s+)?(?:[^;"']*?\s+from\s+)?|export\s+[^;"']*?\s+from\s+)["']([^"'.\/][^"']*)["']|\bimport\(\s*["']([^"'.\/][^"']*)["']\s*\)/g)) {
+      const spec = m[1] ?? m[2]!;
+      if (BUILTIN_OK.test(spec) || /^import\s+type\b/.test(m[0].replace(/^[;\s]+/, ""))) continue;
+      const name = spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0]!;
+      if (aliases.includes(name) || deps.has(name)) continue;
+      if (!missing.has(name)) missing.set(name, f.path);
+    }
+  }
+  return [...missing].map(([name, from]) => d({ type: "missing_module", file: "package.json", line: 1, column: 1, message: `${from} imports "${name}", but package.json doesn't list it — add "${name}" to dependencies (the real build fails with "failed to resolve import")`, code: "DEP_NOT_DECLARED", related: [from] }));
+}
+
 /** Whole-project validation: syntax per file, paths, references, entry point. Enriched with cause/context. */
 export function validateProject(store: FileStore): { errors: Diagnostic[]; warnings: Diagnostic[] } {
   const all: Diagnostic[] = [];
@@ -261,7 +284,7 @@ export function validateProject(store: FileStore): { errors: Diagnostic[]; warni
     const tsx = /\.(tsx?|jsx)$/i.test(f.path) && !/\.d\.ts$/i.test(f.path) && f.encoding !== "base64";
     all.push(...validateFile(store, f.path), ...(tsx && !vite && !/\.jsx$/i.test(f.path) ? validateTs(f.path) : []), ...(tsx && vite ? validateTsxSyntax(f.path, f.content) : []));
   }
-  all.push(...validatePaths(store), ...validateReferences(store), ...(vite ? [...validateViteExports(store), ...validateViteImports(store)] : []));
+  all.push(...validatePaths(store), ...validateReferences(store), ...(vite ? [...validateViteExports(store), ...validateViteImports(store), ...validateViteDeps(store)] : []));
   const enriched = all.map((x) => classify(store, x));
   return { errors: enriched.filter((x) => x.severity === "error"), warnings: enriched.filter((x) => x.severity === "warning") };
 }

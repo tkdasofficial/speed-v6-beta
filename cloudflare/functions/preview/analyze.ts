@@ -59,6 +59,11 @@ export function deterministicVerdict(d: PreviewDiag): VisualVerdict | null | { u
     const pkg = /(?:No matching version found for|'|")(@?[\w./-]+@[^\s.'"]+)/.exec(d.error ?? "")?.[1];
     return fail("build_error", "critical", `Installing the project's dependencies failed${pkg ? ` (${pkg} does not exist)` : ""}, so there is no preview to open.`, [(d.error ?? "").slice(0, 600)], "Fix package.json: remove or correct the package/version that npm cannot install (e.g. drop @types packages for libraries that ship their own types).", ["package.json"]);
   }
+  const unresolved = /failed to resolve import ["']([^"'.\/][^"']*)["']/i.exec(d.error ?? "")?.[1];
+  if (d.stage === "build" && unresolved) {
+    const name = unresolved.startsWith("@") ? unresolved.split("/").slice(0, 2).join("/") : unresolved.split("/")[0]!;
+    return fail("build_error", "critical", `The production build failed: the code imports the package "${name}", which is not installed.`, [(d.error ?? "").slice(0, 600)], `Add "${name}" to dependencies in package.json (or remove the import if it isn't needed).`, ["package.json", ...filesIn(d.error ?? "")]);
+  }
   if (d.stage === "build") return fail("build_error", "critical", "The production build failed, so there is no preview to open.", [d.error ?? ""], "Fix the build error shown in the evidence.", filesIn(d.error ?? ""));
   if (d.stage === "server") return fail("navigation_failure", "critical", "The built app could not be served by the preview server.", [d.error ?? ""], "Check vite.config and index.html for invalid configuration.", ["vite.config.ts", "index.html"]);
   if (d.stage !== "captured" || !d.views?.length) return { unverifiable: d.error || `Preview check did not complete (stage: ${d.stage})` };

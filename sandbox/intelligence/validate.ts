@@ -275,6 +275,53 @@ export function validateViteDeps(store: FileStore): Diagnostic[] {
   return [...missing].map(([name, from]) => d({ type: "missing_module", file: "package.json", line: 1, column: 1, message: `${from} imports "${name}", but package.json doesn't list it — add "${name}" to dependencies (the real build fails with "failed to resolve import")`, code: "DEP_NOT_DECLARED", related: [from] }));
 }
 
+/** Files reachable from src/main.* through relative imports (Vite only bundles these). */
+export function reachableFromEntry(store: FileStore): Set<string> | null {
+  const entry = ["src/main.tsx", "src/main.ts", "src/main.jsx", "src/main.js"].find((p) => store.get(p));
+  if (!entry) return null;
+  const seen = new Set<string>([entry]); const q = [entry];
+  while (q.length) {
+    const f = q.pop()!; const c = store.get(f)?.content ?? "";
+    const dir = f.slice(0, f.lastIndexOf("/"));
+    for (const m of c.matchAll(/(?:from\s+|import\s*\(?\s*)["'](\.{1,2}\/[^"'?#]+)["']/g)) {
+      const parts: string[] = [];
+      for (const seg of `${dir}/${m[1]}`.split("/")) { if (seg === "..") parts.pop(); else if (seg !== "." && seg) parts.push(seg); }
+      const base = parts.join("/");
+      const hit = VITE_EXT.map((e) => base + e).find((p) => store.get(p));
+      if (hit && !seen.has(hit)) { seen.add(hit); q.push(hit); }
+    }
+  }
+  return seen;
+}
+
+/** Wiring/tooling mistakes that build fine but render wrong: Tailwind used without being installed/configured, and
+ *  router pages that are never mounted (an <Outlet/> with no router reachable from main). */
+export function validateViteSetup(store: FileStore): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  let deps: Record<string, string> = {};
+  try { const j = JSON.parse(store.get("package.json")?.content ?? "{}") as Record<string, Record<string, string> | undefined>; deps = { ...(j["dependencies"] ?? {}), ...(j["devDependencies"] ?? {}) }; } catch { return out; }
+  const css = store.list().filter((f) => /\.(css|scss)$/.test(f.path) && f.encoding !== "base64");
+  const v3 = css.find((f) => /@tailwind\s+(base|components|utilities)/.test(f.content));
+  const v4 = css.find((f) => /@import\s+["']tailwindcss["']/.test(f.content));
+  const has = (re: RegExp) => store.list().some((f) => re.test(f.path));
+  if (v3) {
+    const missing = [!deps["tailwindcss"] && "tailwindcss@^3 in devDependencies", !deps["postcss"] && "postcss", !deps["autoprefixer"] && "autoprefixer", !has(/^tailwind\.config\.(js|cjs|mjs|ts)$/) && "tailwind.config.js (content: [\"./index.html\", \"./src/**/*.{ts,tsx}\"])", !has(/^postcss\.config\.(js|cjs|mjs)$/) && "postcss.config.js (plugins: tailwindcss, autoprefixer)"].filter(Boolean);
+    if (/^\^?4|^latest/.test(deps["tailwindcss"] ?? "")) missing.push('tailwindcss is v4 but the CSS uses v3 "@tailwind" directives — pin tailwindcss to ^3.4');
+    if (missing.length) out.push(d({ type: "build_configuration_error", file: v3.path, line: 1, column: 1, message: `${v3.path} uses Tailwind (@tailwind) but Tailwind isn't set up, so every Tailwind class renders unstyled. Add: ${missing.join("; ")}. Or remove the @tailwind lines and write plain CSS.`, code: "TAILWIND_NOT_CONFIGURED", related: ["package.json"] }));
+  }
+  if (v4 && !(deps["tailwindcss"] && deps["@tailwindcss/vite"] && /tailwindcss\s*\(/.test(store.get("vite.config.ts")?.content ?? store.get("vite.config.js")?.content ?? "")))
+    out.push(d({ type: "build_configuration_error", file: v4.path, line: 1, column: 1, message: `${v4.path} imports Tailwind v4 but it isn't set up: add tailwindcss and @tailwindcss/vite to devDependencies and tailwindcss() to the plugins in vite.config.ts.`, code: "TAILWIND_NOT_CONFIGURED", related: ["package.json", "vite.config.ts"] }));
+  const reach = reachableFromEntry(store);
+  if (reach) {
+    const src = store.list().filter((f) => /^src\/.*\.(tsx|jsx)$/.test(f.path));
+    const routerReached = [...reach].some((p) => /<(Routes|RouterProvider)\b|useRoutes\s*\(/.test(store.get(p)?.content ?? ""));
+    const outletReached = [...reach].find((p) => /<Outlet\b/.test(store.get(p)?.content ?? ""));
+    const orphanRouter = src.find((f) => !reach.has(f.path) && /<(Routes|RouterProvider)\b|createBrowserRouter|useRoutes\s*\(/.test(f.content));
+    if (!routerReached && (outletReached || orphanRouter)) out.push(d({ type: "broken_reference", file: outletReached ?? "src/main.tsx", line: 1, column: 1, message: `No router is mounted: ${outletReached ? `${outletReached} renders <Outlet/>` : "pages are defined"} but nothing reachable from src/main.tsx renders <Routes>/<RouterProvider>${orphanRouter ? ` — ${orphanRouter.path} defines the routes but is never imported; render it from src/main.tsx (and use only ONE router)` : ""}, so the pages never appear.`, code: "ROUTER_NOT_MOUNTED", related: orphanRouter ? [orphanRouter.path, "src/main.tsx"] : ["src/main.tsx"] }));
+  }
+  return out;
+}
+
 /** Whole-project validation: syntax per file, paths, references, entry point. Enriched with cause/context. */
 export function validateProject(store: FileStore): { errors: Diagnostic[]; warnings: Diagnostic[] } {
   const all: Diagnostic[] = [];
@@ -284,7 +331,7 @@ export function validateProject(store: FileStore): { errors: Diagnostic[]; warni
     const tsx = /\.(tsx?|jsx)$/i.test(f.path) && !/\.d\.ts$/i.test(f.path) && f.encoding !== "base64";
     all.push(...validateFile(store, f.path), ...(tsx && !vite && !/\.jsx$/i.test(f.path) ? validateTs(f.path) : []), ...(tsx && vite ? validateTsxSyntax(f.path, f.content) : []));
   }
-  all.push(...validatePaths(store), ...validateReferences(store), ...(vite ? [...validateViteExports(store), ...validateViteImports(store), ...validateViteDeps(store)] : []));
+  all.push(...validatePaths(store), ...validateReferences(store), ...(vite ? [...validateViteExports(store), ...validateViteImports(store), ...validateViteDeps(store), ...validateViteSetup(store)] : []));
   const enriched = all.map((x) => classify(store, x));
   return { errors: enriched.filter((x) => x.severity === "error"), warnings: enriched.filter((x) => x.severity === "warning") };
 }

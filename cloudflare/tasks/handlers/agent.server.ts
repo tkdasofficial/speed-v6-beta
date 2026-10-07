@@ -191,10 +191,12 @@ async function planStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   // Real execution call (planning), recorded honestly; progress text never creates usage rows.
   await ar.usage({ provider: (out.usedModel ?? "unknown").split("/")[0]!, model: out.usedModel ?? "unknown", requestType: "plan", latencyMs: Date.now() - planT0, status: "succeeded" });
   if ("answer" in out) return end(c, st, "done", out.answer);
-  st.plan = out.plan; st.planVersion = (st.planVersion ?? 0) + 1; delete st.feedback;
+  // Complete the plan deterministically: every file the stack needs is known before generation, not found by a failed build.
+  const { completePlan } = await import("../../../sandbox/intelligence/scaffold");
+  st.plan = completePlan(out.plan, files); st.planVersion = (st.planVersion ?? 0) + 1; delete st.feedback;
   await ar.checkpoint({ type: "stage", state: { phase: "awaiting", planVersion: st.planVersion, baseRevision: st.baseRevision }, completed: ["analyze", "plan"], pending: (st.ag?.batches ?? []).map((b) => b.id), next: "awaiting_approval" });
   await ar.stage("awaiting_approval");
-  await c.emit("plan", { version: st.planVersion, plan: out.plan as unknown as Json });
+  await c.emit("plan", { version: st.planVersion, plan: st.plan as unknown as Json });
   await phase(c, "awaiting_approval");
   st.phase = "awaiting";
   return { done: false, wait: true };
@@ -224,6 +226,29 @@ async function decisionStep(c: TaskContext, st: State): Promise<StepResult> {
     for (const sid of Object.values(st.ag?.batchSteps ?? {})) await ar.finishStep(sid, { status: "running" });
     const { batchPrompt } = await import("../../agent/grouping");
     st.results = st.ag ? `TASK BATCHES (do each batch's related edits together, in as few rounds as possible):\n${batchPrompt(st.ag.tasks, st.ag.batches)}${st.ag.relevant?.length ? `\nMost relevant files: ${st.ag.relevant.join(", ")}` : ""}` : "";
+    // Fresh React project: write the stack configuration deterministically (no AI) so generation only writes real UI.
+    if (st.plan) {
+      const fs = await import("../../sandbox/fs.server");
+      const { d1 } = await import("@backend/d1");
+      const { stackFiles, manifestPrompt } = await import("../../../sandbox/intelligence/scaffold");
+      const pid = c.task.project_id!;
+      const paths = (await fs.loadStore(pid)).store.list().map((f) => f.path);
+      const [proj] = await d1<{ name: string }>("SELECT name FROM projects WHERE id = ?", [pid]);
+      const stack = stackFiles(st.plan, paths, proj?.name ?? st.plan.title ?? "Website");
+      const written: string[] = [];
+      if (stack.length) {
+        const sess = await session(c);
+        const r = await act(c, st, { kind: "edit", running: "Setting up project", done: `Project set up · ${stack.length} files`, failed: "Project setup failed" }, async () => {
+          for (const f of stack) { const res = await ar.tool(sess, "write_file", { path: f.path, content: f.content }); if (res.success) written.push(f.path); }
+          if (!written.length) return { ok: false, error: "No setup files could be written" };
+          const cm = await sess.commit("Project setup");
+          if (cm.changed.length) { st.mutated = true; st.changed = [...new Set([...(st.changed ?? []), ...cm.changed])]; await c.emit("files", { revision: cm.revision, changed: cm.changed.slice(0, 50) }); }
+          return { ok: true };
+        });
+        if (r.ok) st.created = [...new Set([...(st.created ?? []), ...written])];
+      }
+      if (st.plan.create.length) st.results = `${st.results}\n${manifestPrompt(st.plan, [...paths, ...written], written)}`;
+    }
   }
   return { done: false, delayMs: 10 };
 }
@@ -333,7 +358,17 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
     if (moved.length) log.push(`(automatic) Moved declarations above their first use in ${moved.join(", ")} (they were used before being defined).`);
   }
   const wrote = sess.pendingChanges.length > 0;
-  if (wrote && built === null && !stopped) {
+  // Manifest gate: while planned files are still unwritten the project is incomplete by definition — checking it now
+  // only reports the missing files and burns repair attempts. Continue generation with the exact remaining list.
+  const remaining = stopped ? [] : (await import("../../../sandbox/intelligence/scaffold")).remainingPlanned(st.plan, await sess.paths());
+  const deferCheck = remaining.length > 0 && round < MAX_ROUNDS - 3;
+  if (deferCheck) {
+    log.push(`(automatic) Generation is not complete — these planned files don't exist yet: ${remaining.join(", ")}. Write each of them completely now (with its styles in src/styles/index.css and its import where it is rendered). Do not mark the task done before they exist.`);
+    step.done = false;
+    if (built === false) { built = null; }
+    await c.emit("step", { label: `Generating ${remaining.length} remaining file${remaining.length === 1 ? "" : "s"}`, round });
+  }
+  if (wrote && built === null && !stopped && !deferCheck) {
     const r = await act(c, st, { kind: "check", running: "Checking project", done: "Check passed", failed: "Check failed", round }, async () => {
       const res = await ar.tool(sess, "verify_project", {}, { stepId: rid, batchId });
       log.push(`(automatic) ${fmt(res)}`);

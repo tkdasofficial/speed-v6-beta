@@ -35,6 +35,7 @@ export async function ensureAgentDb(): Promise<string> {
   const list = await cf<{ uuid: string; name: string }[]>(`?name=agent`);
   const id = list.find((d) => d.name === "agent")?.uuid ?? (await cf<{ uuid: string }>("", { method: "POST", body: JSON.stringify({ name: "agent" }) })).uuid;
   await migrate(id, `${import.meta.dir}/../migrations-agent`);
+  await seedKnowledge(id);
   return id;
 }
 
@@ -49,4 +50,20 @@ export async function migrateMain(id: string) {
       await query(id, "INSERT OR IGNORE INTO _migrations (name) VALUES (?)", [f]);
   }
   await migrate(id, `${import.meta.dir}/../migrations`);
+}
+
+/** Upserts the Agent knowledge bases (cloudflare/agent/knowledge/*.json) into agent_knowledge_bases when their content changed. */
+export async function seedKnowledge(db: string) {
+  const { createHash } = await import("node:crypto");
+  const dir = `${import.meta.dir}/../agent/knowledge`;
+  const have = new Map(((await query(db, "SELECT id, content_hash FROM agent_knowledge_bases"))[0]?.results ?? []).map((r) => [String(r["id"]), String(r["content_hash"])]));
+  for (const f of readdirSync(dir).filter((x) => x.endsWith(".json"))) {
+    const raw = readFileSync(`${dir}/${f}`, "utf8");
+    const j = JSON.parse(raw) as { dataset: { id: string; name: string; version: string } };
+    const json = JSON.stringify(j);
+    const hash = createHash("sha256").update(json).digest("hex");
+    if (have.get(j.dataset.id) === hash) continue;
+    await query(db, "INSERT INTO agent_knowledge_bases (id, name, version, content_hash, content_json, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now')) ON CONFLICT(id) DO UPDATE SET name=excluded.name, version=excluded.version, content_hash=excluded.content_hash, content_json=excluded.content_json, updated_at=excluded.updated_at", [j.dataset.id, j.dataset.name, j.dataset.version, hash, json]);
+    console.log(`seeded knowledge ${j.dataset.id}`);
+  }
 }

@@ -100,3 +100,39 @@ describe("style wiring", () => {
     expect(styleVerdict(ok)).toBeNull();
   });
 });
+
+describe("syntax error location", () => {
+  it("points at an unclosed JSX expression instead of the arrow function", async () => {
+    const { validateTsxSyntax } = await import("../../sandbox/intelligence/validate");
+    const c = `const t=[1];\nexport const T = () => {\n  return (\n    <div>\n      {t.map((x) => (\n        <p key={x}>{x}</p>\n      ))\n    </div>\n  );\n};\n`;
+    const [e] = validateTsxSyntax("a.tsx", c);
+    expect(e?.line).toBe(5);
+    expect(e?.message).toContain("never closed");
+  });
+});
+
+describe("orphan components", () => {
+  it("flags a component nothing imports", async () => {
+    const { validateViteStyles } = await import("../../sandbox/intelligence/validate");
+    const { MemoryFileStore } = await import("../../sandbox/workspace/workspace");
+    const s = new MemoryFileStore();
+    const put = (path: string, content: string) => s.set({ path, content, encoding: "utf8" } as never);
+    put("package.json", '{"dependencies":{"react":"18","vite":"5"}}');
+    put("index.html", '<div id="root"></div><script type="module" src="/src/main.tsx"></script>');
+    put("src/main.tsx", 'import "./styles/index.css";\nimport App from "./App";\nApp;');
+    put("src/App.tsx", "export default function App(){return <main className=\"a\"/>}");
+    put("src/styles/index.css", ".a{color:red}");
+    put("src/components/Testimonials/index.tsx", "export function Testimonials(){return <section className=\"a\"/>}");
+    expect(validateViteStyles(s).map((x) => x.code)).toContain("COMPONENT_NOT_RENDERED");
+  });
+});
+
+describe("unclosed JSX brace repair", () => {
+  it("adds the missing } after a .map(...) block", async () => {
+    const { fixUnclosedJsxBrace, validateTsxSyntax } = await import("../../sandbox/intelligence/validate");
+    const c = `const t=[1];\nexport const T = () => {\n  return (\n    <div>\n      {t.map((x) => (\n        <p key={x}>{x}</p>\n      ))\n    </div>\n  );\n};\n`;
+    const f = fixUnclosedJsxBrace("a.tsx", c);
+    expect(f).toContain("))}");
+    expect(validateTsxSyntax("a.tsx", f!)).toEqual([]);
+  });
+});

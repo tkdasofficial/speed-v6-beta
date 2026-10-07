@@ -302,12 +302,33 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   st.created = [...created].slice(0, 200);
   // Declarations used before they exist crash the page; reorder them deterministically before checking.
   if (!stopped) {
-    const { fixUseBeforeInit } = await import("../../../sandbox/intelligence/validate");
+    const { fixUseBeforeInit, fixUnclosedJsxBrace } = await import("../../../sandbox/intelligence/validate");
     const lastErr = log.filter((l) => /USE_BEFORE_INIT/.test(l)).slice(-1)[0] ?? "";
     const flagged = [...lastErr.matchAll(/"file":"([^"]+)"/g)].map((m) => m[1]!);
     // Invisible characters (zero-width spaces, BOMs) some models emit break parsing and can't be "seen" to fix by hand.
     const cleaned = await sess.autoFix(sess.pendingChanges.filter((p) => /\.(m?[jt]sx?|css|html?|json)$/.test(p)), (_p, c) => { const n = c.replace(/[\u200B-\u200D\u2060\uFEFF]/g, ""); return n === c ? null : n; });
     if (cleaned.length) log.push(`(automatic) Removed invisible characters from ${cleaned.join(", ")}.`);
+    // Scaffold leftovers: a favicon link to a file that doesn't exist (e.g. /vite.svg) only wastes repair attempts.
+    const braces = await sess.autoFix([...new Set([...sess.pendingChanges, ...[...(log.filter((l) => /TS_SYNTAX_ERROR/.test(l)).slice(-1)[0] ?? "").matchAll(/"file":"([^"]+)"/g)].map((m) => m[1]!)])].filter((p) => /\.[jt]sx$/.test(p)), fixUnclosedJsxBrace);
+    if (braces.length) log.push(`(automatic) Closed an unclosed JSX {…} expression in ${braces.join(", ")}.`);
+    // A stylesheet that nothing imports does nothing: link it deterministically (sibling component first, else the entry).
+    {
+      const all = new Set(await sess.paths());
+      const lastStyle = log.filter((l) => /STYLE_NOT_IMPORTED/.test(l)).slice(-1)[0] ?? "";
+      const unlinked = [...new Set([...lastStyle.matchAll(/([\w./-]+\.css) is never imported/g)].map((m) => m[1]!))].filter((f) => all.has(f));
+      for (const css of unlinked) {
+        const dir = css.replace(/\/[^/]+$/, ""); const base = css.split("/").pop()!;
+        const sib = ["index.tsx", "index.jsx", base.replace(/\.css$/, ".tsx"), base.replace(/\.css$/, ".jsx")].map((n) => `${dir}/${n}`).find((f) => all.has(f));
+        const host = sib ?? ["src/main.tsx", "src/main.jsx"].find((f) => all.has(f));
+        if (!host) continue;
+        const spec = sib ? `./${base}` : `./${css.replace(/^src\//, "")}`;
+        const done = await sess.autoFix([host], (_p, c) => c.includes(spec) ? null : `import "${spec}";\n${c}`);
+        if (done.length) log.push(`(automatic) Linked ${css} by importing it from ${host}.`);
+      }
+    }
+    const present = new Set(await sess.paths()); const hasFile = (h: string) => present.has(h) || present.has(`public/${h}`);
+    const ico = await sess.autoFix(["index.html"], (_p, c) => { const n = c.replace(/^[ \t]*<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*>[ \t]*\r?\n?/gim, (m) => { const h = /href=["']\/?([^"']+)["']/.exec(m)?.[1]; return h && !/^(https?:|data:)/.test(h) && !hasFile(h) ? "" : m; }); return n === c ? null : n; });
+    if (ico.length) log.push("(automatic) Removed a favicon link to a missing file from index.html.");
     const moved = await sess.autoFix([...new Set([...sess.pendingChanges, ...flagged])].filter((p) => /\.[jt]sx?$/.test(p)), fixUseBeforeInit);
     if (moved.length) log.push(`(automatic) Moved declarations above their first use in ${moved.join(", ")} (they were used before being defined).`);
   }
@@ -351,12 +372,13 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   if (built !== null) st.lastCheck = built;
   // While a new project is still being created, a check that only reports files not written yet (missing entry,
   // unresolved import) is unfinished work, not a failed repair: list what to create next and don't spend a repair.
-  if (built === false && (st.created ?? []).length && !step.done) {
+  if (built === false && (st.created ?? []).length) {
     const lastErr = log.filter((l) => /verify_project/.test(l)).slice(-1)[0] ?? "";
     const types = [...lastErr.matchAll(/"type":"([a-z_]+)"/g)].map((m) => m[1]!);
-    if (types.length && types.every((t) => t === "missing_asset" || t === "broken_import" || t === "missing_file") && (st.pendingCreates = (st.pendingCreates ?? 0) + 1) <= 4) {
-      const refs = [...new Set([...lastErr.matchAll(/(?:resolve|find|missing|No such file:?)\s*"?([\w./-]+\.\w+)"?/gi)].map((m) => m[1]!))].slice(0, 6);
-      log.push(`(automatic) The project is not finished yet — files it references don't exist${refs.length ? `: ${refs.join(", ")}` : ""}. Create the missing files next (e.g. src/main.tsx, src/App.tsx) instead of removing the references.`);
+    if (types.length && types.filter((t) => t === "missing_asset" || t === "broken_import" || t === "missing_file").length * 2 >= types.length && (st.pendingCreates = (st.pendingCreates ?? 0) + 1) <= 4) {
+      const refs = [...new Set([...lastErr.matchAll(/(?:resolve|find|missing|No such file:?)\s*\\*"?([\w./-]+)\\*"?(?:\s+from\s+([\w./-]+))?/gi)].map((m) => m[2] ? `${m[1]} (imported by ${m[2]})` : m[1]!))].slice(0, 6);
+      log.push(`(automatic) The project is not finished yet — files it references don't exist${refs.length ? `: ${refs.join(", ")}` : ""}. Create the missing files next (e.g. src/main.tsx, src/App.tsx) instead of removing the references, and fix the other reported problems too. The task is not done until the check passes.`);
+      step.done = false;
       built = null; st.lastCheck = null;
     }
   }

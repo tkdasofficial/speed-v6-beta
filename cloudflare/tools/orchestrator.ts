@@ -46,6 +46,8 @@ export class ToolSession {
     for (const p of paths) { const f = store.get(p); if (!f || f.encoding === "base64") continue; const n = fix(p, f.content); if (n !== null && n !== f.content) { store.set({ ...f, content: n }); this.dirty.add(p); done.push(p); } }
     return done;
   }
+  /** Current working-copy paths (no IO after the first load). */
+  async paths(): Promise<string[]> { return (await this.files()).list().map((f) => f.path); }
   cancel() { this.abort.abort(); }
 
   private async files() {

@@ -96,8 +96,50 @@ export function validateTsxSyntax(file: string, code: string): Diagnostic[] {
     return [...undefinedNames(file, ast as unknown as AstNode), ...useBeforeInit(file, ast as unknown as AstNode)];
   } catch (e) {
     const err = e as { message: string; loc?: { line: number; column: number } };
-    return [d({ type: "syntax_error", file, line: err.loc?.line ?? 1, column: (err.loc?.column ?? 0) + 1, message: err.message.replace(/\s*\(\d+:\d+\)$/, ""), code: "TS_SYNTAX_ERROR" })];
+    // The parser backtracks out of arrow functions and often blames the `=>` line; a bracket-balance scan finds the real spot.
+    const b = bracketMismatch(code);
+    const msg = err.message.replace(/\s*\(\d+:\d+\)$/, "") + (b ? ` — likely real cause: ${b.text}` : "");
+    return [d({ type: "syntax_error", file, line: b?.line ?? err.loc?.line ?? 1, column: b ? b.column : (err.loc?.column ?? 0) + 1, message: msg, code: "TS_SYNTAX_ERROR" })];
   }
+}
+
+/** First unbalanced ( [ { in the source (strings/comments/template literals skipped; quotes only when closed on the same line). */
+export function bracketMismatch(code: string): { line: number; column: number; text: string } | null {
+  const stack: { ch: string; line: number; col: number }[] = []; const pair: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+  let line = 1, col = 0;
+  for (let i = 0; i < code.length; i++) {
+    const c = code[i]!; col++;
+    if (c === "\n") { line++; col = 0; continue; }
+    if (c === "/" && code[i + 1] === "/") { while (i < code.length && code[i + 1] !== "\n") i++; continue; }
+    if (c === "/" && code[i + 1] === "*") { const e = code.indexOf("*/", i + 2); if (e < 0) break; for (let k = i; k < e + 2; k++) if (code[k] === "\n") { line++; col = 0; } i = e + 1; continue; }
+    if (c === '"' || c === "'") { const nl = code.indexOf("\n", i + 1); const e = code.indexOf(c, i + 1); if (e > 0 && (nl < 0 || e < nl)) { col += e - i; i = e; } continue; }
+    if (c === "`") { const e = code.indexOf("`", i + 1); if (e < 0) break; for (let k = i; k < e; k++) if (code[k] === "\n") { line++; col = 0; } i = e; continue; }
+    if ("([{".includes(c)) stack.push({ ch: c, line, col });
+    else if (c in pair) {
+      const top = stack.pop();
+      if (!top) return { line, column: col, text: `unexpected "${c}" at line ${line} with nothing open` };
+      if (top.ch !== pair[c]) return { line: top.line, column: top.col, text: `"${top.ch}" opened at line ${top.line} column ${top.col} is never closed (found "${c}" at line ${line} column ${col} instead) — e.g. a missing "}" after a JSX {…map(…)} expression` };
+    }
+  }
+  const t = stack.pop();
+  return t ? { line: t.line, column: t.col, text: `"${t.ch}" opened at line ${t.line} column ${t.col} is never closed` } : null;
+}
+
+/** Deterministic repair for the most common model slip: `{items.map((x) => (...))` missing its closing "}" before
+ *  the next JSX tag. Only applied when the result parses cleanly; otherwise returns null. */
+export function fixUnclosedJsxBrace(file: string, code: string): string | null {
+  if (!/\.(tsx|jsx)$/.test(file) || !validateTsxSyntax(file, code).some((x) => x.code === "TS_SYNTAX_ERROR")) return null;
+  let cur = code;
+  for (let pass = 0; pass < 4; pass++) {
+    const b = bracketMismatch(cur);
+    if (!b || !/^"\{"/.test(b.text)) return null;
+    const lines = cur.split("\n"); let start = 0; for (let i = 0; i < b.line - 1; i++) start += lines[i]!.length + 1;
+    const re = /\)\s*\)(?=\s*\n\s*<\/)/g; re.lastIndex = start + b.column; const m = re.exec(cur);
+    if (!m) return null;
+    cur = cur.slice(0, m.index + m[0].length) + "}" + cur.slice(m.index + m[0].length);
+    if (!validateTsxSyntax(file, cur).some((x) => x.code === "TS_SYNTAX_ERROR")) return cur;
+  }
+  return null;
 }
 
 type AstNode = { type: string; [k: string]: unknown; loc?: { start: { line: number; column: number } } };
@@ -401,6 +443,11 @@ export function validateViteStyles(store: FileStore): Diagnostic[] {
   const tw = !!deps["tailwindcss"] && [...cssReached].some((c) => /@tailwind\s+utilities|@import\s+["']tailwindcss/.test(store.get(c)!.content));
   // 1. Stylesheets that exist but are never imported (the classic "CSS generated but not loaded").
   for (const f of allCss) if (!cssReached.has(f.path) && !/\.module\./.test(f.path)) out.push(d({ type: "broken_reference", file: f.path, line: 1, column: 1, message: `${f.path} is never imported, so none of its styles reach the page. Import it from src/main.tsx (import "./${f.path.replace(/^src\//, "")}") or from the component that uses it, or merge it into src/styles/index.css.`, code: "STYLE_NOT_IMPORTED", related: ["src/main.tsx"] }));
+  // Components/pages that nothing imports never appear on the page (typical after "add a section" edits).
+  for (const f of store.list()) if (/^src\/(components|pages)\/.+\.(tsx|jsx)$/.test(f.path) && !/\.(test|spec|stories)\./.test(f.path) && !reach.has(f.path)) {
+    const name = f.path.replace(/\/index\.(tsx|jsx)$/, "").split("/").pop()!.replace(/\.(tsx|jsx)$/, "");
+    out.push(d({ type: "broken_reference", file: f.path, line: 1, column: 1, message: `${f.path} is never imported from the app (src/main.tsx → App → pages), so ${name} never renders. Import and render it where it belongs (e.g. in the page that should show it), or delete it if unused.`, code: "COMPONENT_NOT_RENDERED", related: [] }));
+  }
   // 2. Classes used by reachable components vs. the CSS that defines them.
   const used = new Map<string, string>();
   for (const f of reach) {
@@ -416,6 +463,15 @@ export function validateViteStyles(store: FileStore): Diagnostic[] {
     else if (used.size >= 6 && missing.length / used.size > 0.3) {
       const looksTw = missing.filter((k) => /^(flex|grid|block|hidden|container|(p|m|px|py|mx|my|pt|pb|mt|mb|gap|w|h|text|bg|rounded|shadow|font|border|items|justify)-)/.test(k)).length > missing.length / 3;
       out.push(d({ type: "build_configuration_error", file: [...used.values()][0]!, line: 1, column: 1, message: looksTw ? `Components use Tailwind utility classes (${missing.slice(0, 6).join(", ")}) but Tailwind isn't set up, so they have no effect. Either set Tailwind up fully (tailwindcss@^3.4 + postcss + autoprefixer, tailwind.config.js, postcss.config.js, @tailwind directives in src/styles/index.css) or replace them with classes defined in src/styles/index.css.` : `${missing.length} of ${used.size} classes used by components have no CSS rule in any loaded stylesheet (${missing.slice(0, 8).join(", ")}), so those elements render unstyled. Add rules for them to ${[...cssReached][0]} with ONE update_file call: {"path":"${[...cssReached][0]}","mode":"append","replace":"<new CSS rules for every listed class>"} — append, don't search/replace existing text.`, code: looksTw ? "TAILWIND_CLASSES_WITHOUT_TAILWIND" : "CLASSES_WITHOUT_STYLES", related: [...cssReached].slice(0, 1).concat("package.json") }));
+    } else if (cssReached.size) {
+      // Per component: a newly added component whose own classes are mostly unstyled (edits add components without CSS).
+      const byFile = new Map<string, string[]>();
+      for (const [k, f] of used) byFile.set(f, [...(byFile.get(f) ?? []), k]);
+      const sheet = [...cssReached][0]!;
+      for (const [f, ks] of byFile) {
+        const miss = ks.filter((k) => !defined.has(k));
+        if (ks.length >= 2 && miss.length >= 2 && miss.length / ks.length >= 0.5) out.push(d({ type: "build_configuration_error", file: f, line: 1, column: 1, message: `${f} uses classes with no CSS rule (${miss.slice(0, 8).join(", ")}), so it renders unstyled. Add rules for them to ${sheet} with ONE update_file call: {"path":"${sheet}","mode":"append","replace":"<new CSS rules for every listed class, matching the existing design>"} — append, don't search/replace existing text.`, code: "CLASSES_WITHOUT_STYLES", related: [sheet] }));
+      }
     }
   }
   // 3. Tailwind configured but not scanning the generated source.

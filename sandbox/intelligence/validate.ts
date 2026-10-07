@@ -380,6 +380,62 @@ export function validateViteSetup(store: FileStore): Diagnostic[] {
   return out;
 }
 
+/** Styling wiring for React/Vite projects. Detects the styling system (plain CSS, CSS modules, Tailwind v3/v4) and checks
+ *  that styles are actually connected: stylesheets reachable from the entry (Vite bundles nothing else), components that
+ *  use classes have CSS that defines them, CSS-module keys exist, Tailwind scans the generated files. Runs on every
+ *  check, so edits that disconnect styles are caught the same way as new projects. */
+export function validateViteStyles(store: FileStore): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const reach = reachableFromEntry(store);
+  if (!reach) return out;
+  let deps: Record<string, string> = {};
+  try { const j = JSON.parse(store.get("package.json")?.content ?? "{}") as Record<string, Record<string, string> | undefined>; deps = { ...(j["dependencies"] ?? {}), ...(j["devDependencies"] ?? {}) }; } catch { /* reported elsewhere */ }
+  const rel = (from: string, ref: string) => { const parts: string[] = []; for (const seg of `${from.slice(0, from.lastIndexOf("/"))}/${ref}`.split("/")) { if (seg === "..") parts.pop(); else if (seg !== "." && seg) parts.push(seg); } return parts.join("/"); };
+  // Stylesheets bundled: CSS imported (directly or via @import) from reachable modules, plus <link> CSS in index.html.
+  const cssReached = new Set<string>();
+  const q: string[] = [];
+  for (const f of reach) for (const m of (store.get(f)?.content ?? "").matchAll(/import\s+(?:[\w*{}\s,]+\s+from\s+)?["'](\.{1,2}\/[^"']+\.(?:css|scss|sass|less))["']/g)) q.push(rel(f, m[1]!));
+  for (const m of (store.get("index.html")?.content ?? "").matchAll(/<link[^>]+href=["']\/?([^"':]+\.css)["']/g)) q.push(m[1]!.replace(/^\.\//, ""));
+  while (q.length) { const c = q.pop()!; if (cssReached.has(c) || !store.get(c)) continue; cssReached.add(c); for (const m of (store.get(c)!.content).matchAll(/@import\s+(?:url\()?["'](\.{0,2}\/?[^"')]+\.css)["']/g)) q.push(m[1]!.startsWith(".") ? rel(c, m[1]!) : m[1]!.replace(/^\//, "")); }
+  const allCss = store.list().filter((f) => /^src\/.*\.(css|scss|sass|less)$/.test(f.path) && f.encoding !== "base64");
+  const tw = !!deps["tailwindcss"] && [...cssReached].some((c) => /@tailwind\s+utilities|@import\s+["']tailwindcss/.test(store.get(c)!.content));
+  // 1. Stylesheets that exist but are never imported (the classic "CSS generated but not loaded").
+  for (const f of allCss) if (!cssReached.has(f.path) && !/\.module\./.test(f.path)) out.push(d({ type: "broken_reference", file: f.path, line: 1, column: 1, message: `${f.path} is never imported, so none of its styles reach the page. Import it from src/main.tsx (import "./${f.path.replace(/^src\//, "")}") or from the component that uses it, or merge it into src/styles/index.css.`, code: "STYLE_NOT_IMPORTED", related: ["src/main.tsx"] }));
+  // 2. Classes used by reachable components vs. the CSS that defines them.
+  const used = new Map<string, string>();
+  for (const f of reach) {
+    if (!/\.(tsx|jsx)$/.test(f)) continue;
+    const c = store.get(f)?.content ?? "";
+    for (const m of c.matchAll(/className\s*=\s*(?:"([^"]*)"|'([^']*)'|\{\s*`([^`]*)`\s*\}|\{\s*["']([^"']*)["']\s*\})/g)) for (const cls of (m[1] ?? m[2] ?? m[3] ?? m[4] ?? "").replace(/\$\{[^}]*\}/g, " ").split(/\s+/)) if (/^[A-Za-z_][\w-]*$/.test(cls) && !used.has(cls)) used.set(cls, f);
+  }
+  const defined = new Set<string>();
+  for (const c of cssReached) for (const m of store.get(c)!.content.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/\.(-?[A-Za-z_][\w-]*)/g)) defined.add(m[1]!);
+  if (!tw && used.size) {
+    const missing = [...used.keys()].filter((k) => !defined.has(k));
+    if (!cssReached.size) out.push(d({ type: "build_configuration_error", file: "src/main.tsx", line: 1, column: 1, message: `Components use ${used.size} CSS classes (e.g. ${[...used.keys()].slice(0, 5).join(", ")}) but no stylesheet is loaded, so the page renders unstyled. Create src/styles/index.css with rules for these classes and import it in src/main.tsx${allCss.length ? ` (existing CSS not imported: ${allCss.map((f) => f.path).slice(0, 3).join(", ")})` : ""}.`, code: "NO_STYLESHEET", related: ["src/styles/index.css", ...allCss.map((f) => f.path).slice(0, 2)] }));
+    else if (used.size >= 8 && missing.length / used.size > 0.5) {
+      const looksTw = missing.filter((k) => /^(flex|grid|block|hidden|container|(p|m|px|py|mx|my|pt|pb|mt|mb|gap|w|h|text|bg|rounded|shadow|font|border|items|justify)-)/.test(k)).length > missing.length / 3;
+      out.push(d({ type: "build_configuration_error", file: [...used.values()][0]!, line: 1, column: 1, message: looksTw ? `Components use Tailwind utility classes (${missing.slice(0, 6).join(", ")}) but Tailwind isn't set up, so they have no effect. Either set Tailwind up fully (tailwindcss@^3.4 + postcss + autoprefixer, tailwind.config.js, postcss.config.js, @tailwind directives in src/styles/index.css) or replace them with classes defined in src/styles/index.css.` : `${missing.length} of ${used.size} classes used by components have no CSS rule in any loaded stylesheet (${missing.slice(0, 8).join(", ")}), so those elements render unstyled. Add rules for them to ${[...cssReached][0]}.`, code: looksTw ? "TAILWIND_CLASSES_WITHOUT_TAILWIND" : "CLASSES_WITHOUT_STYLES", related: [...cssReached].slice(0, 1).concat("package.json") }));
+    }
+  }
+  // 3. Tailwind configured but not scanning the generated source.
+  if (tw && deps["tailwindcss"] && !/^\^?4/.test(deps["tailwindcss"])) {
+    const cfg = store.list().find((f) => /^tailwind\.config\.(js|cjs|mjs|ts)$/.test(f.path));
+    if (cfg && !(/content\s*:/.test(cfg.content) && /src\/\*\*\/\*\.\{?[^"'`]*tsx/.test(cfg.content))) out.push(d({ type: "build_configuration_error", file: cfg.path, line: 1, column: 1, message: `${cfg.path} doesn't scan the components, so Tailwind generates no classes: set content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"].`, code: "TAILWIND_CONTENT", related: [] }));
+  }
+  // 4. CSS-module keys that the module doesn't define.
+  for (const f of reach) {
+    const c = store.get(f)?.content ?? "";
+    for (const m of c.matchAll(/import\s+(\w+)\s+from\s+["'](\.{1,2}\/[^"']+\.module\.(?:css|scss))["']/g)) {
+      const mod = store.get(rel(f, m[2]!)); if (!mod) continue;
+      const keys = new Set([...mod.content.matchAll(/\.(-?[A-Za-z_][\w-]*)/g)].map((x) => x[1]!));
+      const miss = [...new Set([...c.matchAll(new RegExp(`\\b${m[1]}\\.([A-Za-z_]\\w*)|\\b${m[1]}\\[["']([\\w-]+)["']\\]`, "g"))].map((x) => x[1] ?? x[2]!))].filter((k) => !keys.has(k) && !keys.has(k.replace(/[A-Z]/g, (u) => `-${u.toLowerCase()}`)));
+      if (miss.length) out.push(d({ type: "broken_reference", file: f, line: 1, column: 1, message: `${f} uses ${miss.slice(0, 5).map((k) => `${m[1]}.${k}`).join(", ")} but ${rel(f, m[2]!)} defines no such class, so those elements are unstyled.`, code: "CSS_MODULE_CLASS_MISSING", related: [rel(f, m[2]!)] }));
+    }
+  }
+  return out;
+}
+
 /** Whole-project validation: syntax per file, paths, references, entry point. Enriched with cause/context. */
 export function validateProject(store: FileStore): { errors: Diagnostic[]; warnings: Diagnostic[] } {
   const all: Diagnostic[] = [];
@@ -389,7 +445,7 @@ export function validateProject(store: FileStore): { errors: Diagnostic[]; warni
     const tsx = /\.(tsx?|jsx)$/i.test(f.path) && !/\.d\.ts$/i.test(f.path) && f.encoding !== "base64";
     all.push(...validateFile(store, f.path), ...(tsx && !vite && !/\.jsx$/i.test(f.path) ? validateTs(f.path) : []), ...(tsx && vite ? validateTsxSyntax(f.path, f.content) : []));
   }
-  all.push(...validatePaths(store), ...validateReferences(store), ...(vite ? [...validateViteExports(store), ...validateViteImports(store), ...validateViteDeps(store), ...validateViteSetup(store)] : []));
+  all.push(...validatePaths(store), ...validateReferences(store), ...(vite ? [...validateViteExports(store), ...validateViteImports(store), ...validateViteDeps(store), ...validateViteSetup(store), ...validateViteStyles(store)] : []));
   const enriched = all.map((x) => classify(store, x));
   return { errors: enriched.filter((x) => x.severity === "error"), warnings: enriched.filter((x) => x.severity === "warning") };
 }

@@ -375,7 +375,11 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   if (built === false && (st.created ?? []).length) {
     const lastErr = log.filter((l) => /verify_project/.test(l)).slice(-1)[0] ?? "";
     const types = [...lastErr.matchAll(/"type":"([a-z_]+)"/g)].map((m) => m[1]!);
-    if (types.length && types.filter((t) => t === "missing_asset" || t === "broken_import" || t === "missing_file").length * 2 >= types.length && (st.pendingCreates = (st.pendingCreates ?? 0) + 1) <= 4) {
+    const codes = [...lastErr.matchAll(/"code":"([A-Z_]+)"/g)].map((m) => m[1]!);
+    // Checks that only describe a half-built project (no entry yet, pages/styles not written yet) while the Agent is still creating it.
+    const unfinished = new Set(["BUILD_NO_ENTRY", "CLASSES_WITHOUT_STYLES", "NO_STYLESHEET", "COMPONENT_NOT_RENDERED", "STYLE_NOT_IMPORTED"]);
+    const onlyUnfinished = !step.done && codes.length > 0 && codes.every((k) => unfinished.has(k) || /MISSING|NOT_FOUND|BROKEN_IMPORT/.test(k));
+    if (types.length && (onlyUnfinished || types.filter((t) => t === "missing_asset" || t === "broken_import" || t === "missing_file").length * 2 >= types.length) && (st.pendingCreates = (st.pendingCreates ?? 0) + 1) <= 6) {
       const refs = [...new Set([...lastErr.matchAll(/(?:resolve|find|missing|No such file:?)\s*\\*"?([\w./-]+)\\*"?(?:\s+from\s+([\w./-]+))?/gi)].map((m) => m[2] ? `${m[1]} (imported by ${m[2]})` : m[1]!))].slice(0, 6);
       log.push(`(automatic) The project is not finished yet — files it references don't exist${refs.length ? `: ${refs.join(", ")}` : ""}. Create the missing files next (e.g. src/main.tsx, src/App.tsx) instead of removing the references, and fix the other reported problems too. The task is not done until the check passes.`);
       step.done = false;

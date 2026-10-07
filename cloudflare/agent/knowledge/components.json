@@ -1,0 +1,1887 @@
+{
+  "dataset": {
+    "name": "Component Identifier Knowledge Base",
+    "id": "component-identifier",
+    "version": "1.0.0",
+    "status": "production",
+    "language": "en",
+    "description": "Structured semantic knowledge for identifying, classifying, understanding, composing, and verifying commonly used website and mobile-first web UI components.",
+    "scope": [
+      "component identification",
+      "component taxonomy",
+      "semantic component naming",
+      "visual and structural recognition",
+      "component relationships",
+      "component states",
+      "responsive behavior",
+      "accessibility",
+      "component composition",
+      "component disambiguation",
+      "mobile-first interface patterns"
+    ],
+    "principles": [
+      "Prefer semantic component meaning over implementation-specific naming.",
+      "Use canonical component names for identification.",
+      "Treat aliases as synonyms or commonly used alternative terms.",
+      "Do not treat framework-specific component names as canonical component names.",
+      "Identify a component from its purpose, structure, behavior, and context rather than appearance alone.",
+      "Prefer the most specific applicable component.",
+      "Use contextual relationships to resolve ambiguous components.",
+      "Preserve responsive and mobile-first behavior when identifying components.",
+      "Distinguish structural components from interactive components.",
+      "Distinguish navigation components from action components.",
+      "Distinguish content components from feedback components.",
+      "A component may contain or compose other components.",
+      "Component identification should remain independent of framework implementation."
+    ],
+    "canonical_component_count": 44,
+    "canonical_components": [
+      "Navigation",
+      "Header",
+      "Footer",
+      "App Drawer",
+      "Hero",
+      "Section",
+      "Container",
+      "Card",
+      "Button",
+      "Link",
+      "Form",
+      "Input",
+      "Select",
+      "Checkbox",
+      "Radio Button",
+      "Textarea",
+      "Label",
+      "Dialog",
+      "Modal",
+      "Popover",
+      "Tooltip",
+      "Dropdown Menu",
+      "Tabs",
+      "Accordion",
+      "Table",
+      "List",
+      "Pagination",
+      "Breadcrumb",
+      "Badge",
+      "Alert",
+      "Toast",
+      "Progress",
+      "Spinner",
+      "Skeleton",
+      "Avatar",
+      "Image",
+      "Icon",
+      "Video",
+      "Carousel",
+      "Search",
+      "Menu",
+      "Drawer",
+      "Calendar",
+      "Date Picker"
+    ]
+  },
+
+  "component_schema": {
+    "required_fields": [
+      "id",
+      "canonical_name",
+      "category",
+      "definition",
+      "purpose",
+      "aliases",
+      "semantic_terms",
+      "properties",
+      "states",
+      "variations",
+      "relationships",
+      "responsive_behavior",
+      "accessibility",
+      "identification_signals",
+      "common_problems",
+      "anti_patterns",
+      "verification"
+    ],
+    "field_definitions": {
+      "id": "Stable machine-readable component identifier.",
+      "canonical_name": "Official canonical component name used for component identification.",
+      "category": "Primary semantic category of the component.",
+      "definition": "Concise semantic definition of the component.",
+      "purpose": "Primary reason the component exists.",
+      "aliases": "Common alternative names that may refer to the same component.",
+      "semantic_terms": "Words and concepts that strongly indicate the component.",
+      "properties": "Common conceptual properties or configuration dimensions.",
+      "content_model": "Typical required, optional, conditional, and forbidden content.",
+      "states": "Common interaction or presentation states.",
+      "variations": "Common structural or behavioral variations.",
+      "relationships": "Semantic relationships with other components.",
+      "responsive_behavior": "Expected adaptation across viewport sizes.",
+      "accessibility": "Important accessibility considerations.",
+      "identification_signals": "Signals an AI can use to recognize the component.",
+      "common_problems": "Common implementation or UX problems.",
+      "anti_patterns": "Patterns that should generally be avoided.",
+      "alternatives": "Semantically related components that may be used instead in specific contexts.",
+      "tradeoffs": "Important design or implementation tradeoffs.",
+      "implementation_notes": "Framework-independent implementation guidance.",
+      "verification": "Ways to verify that the component is correctly identified and implemented."
+    }
+  },
+
+  "entities": [
+
+    {
+      "id": "navigation",
+      "canonical_name": "Navigation",
+      "category": "navigation",
+      "definition": "A UI mechanism that allows users to move between destinations, pages, sections, or application areas.",
+      "purpose": "Provides discoverable access to destinations.",
+      "aliases": ["nav", "site navigation", "navigation system"],
+      "semantic_terms": ["navigation", "navigate", "destination", "site links", "nav"],
+      "properties": ["items", "destinations", "active item", "groups"],
+      "content_model": {
+        "required": ["navigation items"],
+        "optional": ["groups", "icons", "badges", "secondary navigation"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "active", "hover", "focus", "expanded", "collapsed", "disabled"],
+      "variations": ["primary navigation", "secondary navigation", "header navigation", "mobile navigation", "contextual navigation"],
+      "relationships": [
+        {"type": "contains", "target": "Link"},
+        {"type": "may-contain", "target": "Menu"},
+        {"type": "targets", "target": "Page"},
+        {"type": "may-be-contained-by", "target": "Header"},
+        {"type": "may-be-contained-by", "target": "App Drawer"}
+      ],
+      "responsive_behavior": [
+        "May transform into a Menu or App Drawer on narrow screens.",
+        "Navigation items must remain usable with touch input.",
+        "Horizontal navigation may become vertically stacked."
+      ],
+      "accessibility": [
+        "Use semantic navigation landmarks where appropriate.",
+        "Provide accessible names.",
+        "Maintain keyboard accessibility.",
+        "Expose the current destination when applicable."
+      ],
+      "identification_signals": [
+        "Contains multiple destinations.",
+        "Items primarily change location or route.",
+        "Often appears in shared site or application structure.",
+        "Usually contains links rather than arbitrary actions."
+      ],
+      "common_problems": ["unclear active state", "mobile overflow", "poor destination labeling"],
+      "anti_patterns": ["using unexplained icons as the only navigation mechanism"],
+      "alternatives": ["Menu", "App Drawer", "Breadcrumb", "Tabs"],
+      "tradeoffs": ["Persistent navigation improves discoverability but consumes space."],
+      "implementation_notes": ["Navigation is a semantic system; its visual presentation may vary."],
+      "verification": ["All destinations work.", "Current destination is identifiable.", "Navigation remains usable on mobile."]
+    },
+
+    {
+      "id": "header",
+      "canonical_name": "Header",
+      "category": "structural",
+      "definition": "A top-level structural region containing introductory, branding, navigation, or utility content for a page or site.",
+      "purpose": "Provides consistent top-level context and access to primary controls.",
+      "aliases": ["site header", "page header", "top bar"],
+      "semantic_terms": ["header", "top bar", "brand", "logo", "site header"],
+      "properties": ["branding", "navigation", "actions", "height", "position"],
+      "content_model": {
+        "required": ["header content"],
+        "optional": ["logo", "Navigation", "Search", "Button", "App Drawer trigger"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "sticky", "collapsed"],
+      "variations": ["site header", "application header", "minimal header", "sticky header"],
+      "relationships": [
+        {"type": "may-contain", "target": "Navigation"},
+        {"type": "may-contain", "target": "Search"},
+        {"type": "may-contain", "target": "Button"},
+        {"type": "may-contain", "target": "App Drawer"}
+      ],
+      "responsive_behavior": [
+        "May reduce visible navigation on mobile.",
+        "May expose an App Drawer trigger on narrow screens.",
+        "Content should not overflow horizontally."
+      ],
+      "accessibility": [
+        "Maintain meaningful landmark structure.",
+        "Ensure controls have accessible names."
+      ],
+      "identification_signals": [
+        "Usually located at the top of a page or application shell.",
+        "Often spans the main content width.",
+        "Frequently contains branding and navigation."
+      ],
+      "common_problems": ["horizontal overflow", "excessive height", "hidden mobile controls"],
+      "anti_patterns": ["placing unrelated page content in a global header"],
+      "alternatives": ["Section"],
+      "tradeoffs": ["Persistent headers provide access but consume vertical space."],
+      "implementation_notes": ["Header is structural and may contain interactive components."],
+      "verification": ["Appears consistently where intended.", "Mobile layout remains usable."]
+    },
+
+    {
+      "id": "footer",
+      "canonical_name": "Footer",
+      "category": "structural",
+      "definition": "A bottom-level structural region containing supplementary information, navigation, legal information, or secondary actions.",
+      "purpose": "Provides persistent end-of-page information and secondary navigation.",
+      "aliases": ["site footer", "page footer"],
+      "semantic_terms": ["footer", "copyright", "legal", "secondary links"],
+      "properties": ["columns", "links", "legal content", "branding"],
+      "content_model": {
+        "required": ["footer content"],
+        "optional": ["Navigation", "legal links", "social links", "branding"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default"],
+      "variations": ["simple footer", "multi-column footer", "minimal footer"],
+      "relationships": [
+        {"type": "may-contain", "target": "Navigation"},
+        {"type": "may-contain", "target": "Link"},
+        {"type": "contains", "target": "Section"}
+      ],
+      "responsive_behavior": [
+        "Columns commonly stack on mobile.",
+        "Footer links should remain touch-friendly."
+      ],
+      "accessibility": ["Maintain logical landmark structure.", "Group related links meaningfully."],
+      "identification_signals": [
+        "Usually appears after primary page content.",
+        "Contains secondary or legal information.",
+        "Often spans the full content width."
+      ],
+      "common_problems": ["overcrowding", "tiny touch targets", "poor mobile stacking"],
+      "anti_patterns": ["placing primary task controls only in the footer"],
+      "alternatives": [],
+      "tradeoffs": ["More footer information improves discoverability but increases page length."],
+      "implementation_notes": ["Footer is normally a page-level structural component."],
+      "verification": ["Footer remains readable and usable on all supported widths."]
+    },
+
+    {
+      "id": "app-drawer",
+      "canonical_name": "App Drawer",
+      "category": "navigation",
+      "definition": "A navigation surface that exposes primary application destinations, commonly through a persistent, collapsible, or off-canvas panel.",
+      "purpose": "Provides access to major application areas while preserving screen space.",
+      "aliases": ["sidebar", "side navigation", "navigation drawer", "left menu", "side menu"],
+      "semantic_terms": ["app drawer", "drawer navigation", "side navigation", "sidebar", "application navigation"],
+      "properties": ["items", "open state", "collapsed state", "position", "width"],
+      "content_model": {
+        "required": ["navigation items"],
+        "optional": ["groups", "icons", "badges", "collapse control"],
+        "conditional": ["close control when displayed as an overlay"],
+        "forbidden": []
+      },
+      "states": ["open", "closed", "expanded", "collapsed", "active"],
+      "variations": ["persistent app drawer", "collapsible app drawer", "off-canvas app drawer", "overlay app drawer"],
+      "relationships": [
+        {"type": "contains", "target": "Navigation"},
+        {"type": "contains", "target": "Menu"},
+        {"type": "controls", "target": "Page"}
+      ],
+      "responsive_behavior": [
+        "Should generally become an overlay or off-canvas surface on small screens.",
+        "Must not unnecessarily consume mobile content width.",
+        "Open and close controls must remain accessible."
+      ],
+      "accessibility": [
+        "Keyboard focus must be managed when used as an overlay.",
+        "Provide an accessible name.",
+        "Provide an accessible close mechanism."
+      ],
+      "identification_signals": [
+        "Contains primary application navigation.",
+        "Appears as a side or off-canvas surface.",
+        "Can open, close, collapse, or expand.",
+        "Controls movement between major application areas."
+      ],
+      "common_problems": ["mobile content obstruction", "inaccessible overlay", "unclear active destination"],
+      "anti_patterns": ["using a permanent desktop-width panel on narrow mobile screens"],
+      "alternatives": ["Navigation", "Drawer", "Menu"],
+      "tradeoffs": ["Persistent access versus available content width."],
+      "implementation_notes": ["App Drawer is the canonical component name for primary application side navigation in this dataset."],
+      "verification": ["All navigation remains accessible.", "Mobile opening and closing works.", "Focus behavior is correct."]
+    },
+
+    {
+      "id": "hero",
+      "canonical_name": "Hero",
+      "category": "content",
+      "definition": "A prominent introductory section that communicates the primary message, value proposition, or purpose of a page.",
+      "purpose": "Creates immediate context and directs users toward a primary goal.",
+      "aliases": ["hero section", "hero banner", "masthead"],
+      "semantic_terms": ["hero", "headline", "value proposition", "primary CTA", "banner"],
+      "properties": ["heading", "description", "media", "primary action", "alignment"],
+      "content_model": {
+        "required": ["primary message"],
+        "optional": ["description", "Button", "Image", "Video", "background media"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default"],
+      "variations": ["text hero", "image hero", "video hero", "split hero", "centered hero"],
+      "relationships": [
+        {"type": "contains", "target": "Button"},
+        {"type": "may-contain", "target": "Image"},
+        {"type": "may-contain", "target": "Video"},
+        {"type": "contains", "target": "Section"}
+      ],
+      "responsive_behavior": [
+        "Split layouts commonly stack on mobile.",
+        "Hero media may resize or move below text.",
+        "Primary content must remain immediately understandable."
+      ],
+      "accessibility": ["Maintain meaningful heading hierarchy.", "Do not rely on background images for essential information."],
+      "identification_signals": [
+        "Large introductory region.",
+        "Contains a prominent headline.",
+        "Usually appears near the beginning of a page.",
+        "Often includes a primary call to action."
+      ],
+      "common_problems": ["excessive height", "weak hierarchy", "mobile overflow"],
+      "anti_patterns": ["hiding the primary message inside decorative media"],
+      "alternatives": ["Section"],
+      "tradeoffs": ["Visual prominence versus content density."],
+      "implementation_notes": ["Hero is a semantic content pattern rather than a specific visual style."],
+      "verification": ["Primary message is immediately identifiable.", "Mobile presentation remains usable."]
+    },
+
+    {
+      "id": "section",
+      "canonical_name": "Section",
+      "category": "structural",
+      "definition": "A thematic grouping of related content within a page.",
+      "purpose": "Organizes page content into meaningful regions.",
+      "aliases": ["content section", "page section"],
+      "semantic_terms": ["section", "content region", "content block"],
+      "properties": ["heading", "content", "spacing", "background"],
+      "content_model": {
+        "required": ["related content"],
+        "optional": ["heading", "Container", "Card", "Image", "actions"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default"],
+      "variations": ["content section", "feature section", "testimonial section", "pricing section"],
+      "relationships": [
+        {"type": "contains", "target": "Container"},
+        {"type": "may-contain", "target": "Card"},
+        {"type": "may-contain", "target": "Hero"}
+      ],
+      "responsive_behavior": ["Spacing and layout should adapt to viewport width."],
+      "accessibility": ["Use meaningful headings when appropriate.", "Preserve logical document structure."],
+      "identification_signals": [
+        "Groups content around one theme or purpose.",
+        "Usually forms a distinct region of a page.",
+        "May have a heading and consistent spacing."
+      ],
+      "common_problems": ["arbitrary grouping", "excessive nesting", "poor spacing"],
+      "anti_patterns": ["using sections solely as generic wrappers without semantic purpose"],
+      "alternatives": ["Container"],
+      "tradeoffs": ["More sections improve structure but can fragment content."],
+      "implementation_notes": ["Section describes meaning, not merely a visual box."],
+      "verification": ["Grouped content has a coherent purpose."]
+    },
+
+    {
+      "id": "container",
+      "canonical_name": "Container",
+      "category": "layout",
+      "definition": "A layout wrapper that constrains, aligns, or organizes content within available space.",
+      "purpose": "Controls content width and horizontal alignment.",
+      "aliases": ["content container", "wrapper", "content wrapper"],
+      "semantic_terms": ["container", "wrapper", "max width", "content width"],
+      "properties": ["max width", "padding", "margin", "alignment"],
+      "content_model": {
+        "required": ["content"],
+        "optional": ["any compatible component"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default"],
+      "variations": ["fixed-width container", "fluid container", "responsive container"],
+      "relationships": [
+        {"type": "contains", "target": "Section"},
+        {"type": "contains", "target": "Card"},
+        {"type": "may-contain", "target": "Form"}
+      ],
+      "responsive_behavior": [
+        "Width should adapt to viewport size.",
+        "Horizontal padding should preserve usable content space."
+      ],
+      "accessibility": ["Container should not interfere with semantic structure."],
+      "identification_signals": [
+        "Constrains content width.",
+        "Provides consistent horizontal alignment.",
+        "Usually has max-width and horizontal padding."
+      ],
+      "common_problems": ["excessive nesting", "too narrow content", "mobile overflow"],
+      "anti_patterns": ["deeply nesting containers without layout purpose"],
+      "alternatives": ["Section"],
+      "tradeoffs": ["Narrower content improves readability but reduces information density."],
+      "implementation_notes": ["Container is primarily a layout concept."],
+      "verification": ["Content aligns consistently across sections.", "No unwanted horizontal overflow."]
+    },
+
+    {
+      "id": "card",
+      "canonical_name": "Card",
+      "category": "content",
+      "definition": "A bounded content grouping representing a related item, entity, or piece of information.",
+      "purpose": "Groups related content into a visually and semantically recognizable unit.",
+      "aliases": ["content card", "tile", "panel card"],
+      "semantic_terms": ["card", "tile", "content item", "preview"],
+      "properties": ["title", "description", "media", "actions", "metadata"],
+      "content_model": {
+        "required": ["related content"],
+        "optional": ["Image", "Icon", "Button", "Link", "Badge"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "hover", "focus", "selected", "disabled"],
+      "variations": ["media card", "product card", "profile card", "feature card", "interactive card"],
+      "relationships": [
+        {"type": "may-contain", "target": "Image"},
+        {"type": "may-contain", "target": "Button"},
+        {"type": "may-contain", "target": "Badge"},
+        {"type": "may-contain", "target": "Icon"}
+      ],
+      "responsive_behavior": [
+        "Card grids may change column count.",
+        "Card content should remain readable at narrow widths."
+      ],
+      "accessibility": ["Interactive cards must have clear focus behavior.", "Do not make large regions clickable without accessible semantics."],
+      "identification_signals": [
+        "Bounded visual grouping.",
+        "Contains related content about one item or concept.",
+        "Often repeated in grids or lists."
+      ],
+      "common_problems": ["overloaded cards", "nested interactive controls", "inconsistent heights"],
+      "anti_patterns": ["putting an entire page inside a card"],
+      "alternatives": ["Section", "List"],
+      "tradeoffs": ["Cards improve scanning but can fragment information."],
+      "implementation_notes": ["Card is a composition pattern, not necessarily an interactive element."],
+      "verification": ["Content grouping is coherent.", "Repeated cards have consistent structure."]
+    },
+
+    {
+      "id": "button",
+      "canonical_name": "Button",
+      "category": "interaction",
+      "definition": "An interactive control that performs an action or triggers an operation.",
+      "purpose": "Allows users to perform actions.",
+      "aliases": ["action button", "CTA", "button control"],
+      "semantic_terms": ["button", "action", "submit", "cancel", "confirm", "CTA"],
+      "properties": ["label", "type", "disabled", "loading", "size", "variant"],
+      "content_model": {
+        "required": ["action label or accessible name"],
+        "optional": ["Icon", "loading indicator"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "hover", "focus", "active", "disabled", "loading", "pressed"],
+      "variations": ["primary", "secondary", "tertiary", "icon button", "destructive button"],
+      "relationships": [
+        {"type": "may-contain", "target": "Icon"},
+        {"type": "may-trigger", "target": "Dialog"},
+        {"type": "may-trigger", "target": "Drawer"},
+        {"type": "may-submit", "target": "Form"}
+      ],
+      "responsive_behavior": ["Touch targets must remain sufficiently large on mobile.", "Labels may adapt but must remain understandable."],
+      "accessibility": ["Use semantic button behavior for actions.", "Provide accessible names.", "Expose disabled and loading states appropriately."],
+      "identification_signals": [
+        "Performs an action rather than primarily changing location.",
+        "Often uses imperative labels such as Save, Submit, Delete, Open."
+      ],
+      "common_problems": ["button used for navigation", "missing disabled state", "inaccessible icon-only button"],
+      "anti_patterns": ["using a div as an interactive button"],
+      "alternatives": ["Link"],
+      "tradeoffs": ["Button prominence should match action importance."],
+      "implementation_notes": ["Use Button for actions and Link for navigation."],
+      "verification": ["Action works.", "Keyboard activation works.", "Accessible name exists."]
+    },
+
+    {
+      "id": "link",
+      "canonical_name": "Link",
+      "category": "navigation",
+      "definition": "An interactive text or media reference that navigates to another destination.",
+      "purpose": "Provides navigation between resources or locations.",
+      "aliases": ["hyperlink", "anchor", "text link"],
+      "semantic_terms": ["link", "href", "navigate", "destination", "URL"],
+      "properties": ["destination", "label", "target", "visited state"],
+      "content_model": {
+        "required": ["destination", "accessible name"],
+        "optional": ["Icon"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "hover", "focus", "active", "visited"],
+      "variations": ["text link", "navigation link", "external link", "download link"],
+      "relationships": [
+        {"type": "targets", "target": "Route"},
+        {"type": "may-contain", "target": "Icon"}
+      ],
+      "responsive_behavior": ["Text should wrap naturally without breaking layout.", "Touch targets should remain usable."],
+      "accessibility": ["Use semantic link behavior.", "Destination should be understandable from link text or context."],
+      "identification_signals": ["Its primary purpose is navigation.", "Has a destination rather than an action."],
+      "common_problems": ["vague link text", "link implemented as button", "broken destination"],
+      "anti_patterns": ["using click handlers on non-link elements for standard navigation"],
+      "alternatives": ["Button"],
+      "tradeoffs": ["Links communicate navigation semantics; buttons communicate actions."],
+      "implementation_notes": ["The Button-versus-Link distinction is semantic and behavioral."],
+      "verification": ["Destination resolves.", "Keyboard navigation works."]
+    },
+
+    {
+      "id": "form",
+      "canonical_name": "Form",
+      "category": "forms",
+      "definition": "A structured group of controls used to collect, validate, and submit user input.",
+      "purpose": "Collects and processes structured user data.",
+      "aliases": ["form", "input form", "data-entry form"],
+      "semantic_terms": ["form", "submit", "field", "validation", "input"],
+      "properties": ["fields", "validation", "submission", "method", "action"],
+      "content_model": {
+        "required": ["one or more form controls"],
+        "optional": ["Label", "Button", "Alert", "helper text"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "editing", "submitting", "success", "error", "disabled"],
+      "variations": ["single-step form", "multi-step form", "search form", "authentication form"],
+      "relationships": [
+        {"type": "contains", "target": "Input"},
+        {"type": "contains", "target": "Label"},
+        {"type": "may-contain", "target": "Select"},
+        {"type": "may-contain", "target": "Checkbox"},
+        {"type": "may-contain", "target": "Radio Button"},
+        {"type": "may-contain", "target": "Textarea"},
+        {"type": "may-contain", "target": "Button"}
+      ],
+      "responsive_behavior": ["Fields commonly stack vertically on mobile.", "Controls should remain touch-friendly."],
+      "accessibility": ["Every control needs an accessible label.", "Validation errors should be communicated clearly.", "Keyboard navigation must work."],
+      "identification_signals": ["Contains input controls intended for data collection.", "Has submission or processing behavior."],
+      "common_problems": ["missing labels", "unclear validation", "poor mobile keyboard behavior"],
+      "anti_patterns": ["collecting user input without semantic form structure"],
+      "alternatives": [],
+      "tradeoffs": ["More validation improves data quality but increases interaction complexity."],
+      "implementation_notes": ["Form is the parent interaction structure for data entry."],
+      "verification": ["All fields can be completed.", "Validation works.", "Submission state is communicated."]
+    },
+
+    {
+      "id": "input",
+      "canonical_name": "Input",
+      "category": "forms",
+      "definition": "A form control used to accept a single value from the user.",
+      "purpose": "Collects a single piece of user input.",
+      "aliases": ["input field", "text field", "form field"],
+      "semantic_terms": ["input", "field", "text field", "form field"],
+      "properties": ["type", "value", "placeholder", "name", "required", "disabled"],
+      "content_model": {
+        "required": ["accessible label"],
+        "optional": ["placeholder", "helper text", "validation message"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["empty", "filled", "focused", "disabled", "readonly", "invalid", "valid"],
+      "variations": ["text input", "email input", "password input", "number input", "search input"],
+      "relationships": [
+        {"type": "belongs-to", "target": "Form"},
+        {"type": "associated-with", "target": "Label"}
+      ],
+      "responsive_behavior": ["Width should adapt to available space.", "Appropriate mobile input types should be used."],
+      "accessibility": ["Provide an accessible label.", "Expose validation state.", "Do not rely only on placeholder text."],
+      "identification_signals": ["Accepts one user-entered value.", "Usually appears as a bordered or underlined field."],
+      "common_problems": ["placeholder used as label", "incorrect input type", "poor error messaging"],
+      "anti_patterns": ["unlabeled input"],
+      "alternatives": ["Textarea", "Select"],
+      "tradeoffs": ["Short inputs are efficient for compact values; long values need other controls."],
+      "implementation_notes": ["Input is a single-value form control."],
+      "verification": ["Value can be entered.", "Label is available.", "Validation works."]
+    },
+
+    {
+      "id": "select",
+      "canonical_name": "Select",
+      "category": "forms",
+      "definition": "A form control that allows the user to choose one or more values from a predefined set of options.",
+      "purpose": "Provides constrained option selection.",
+      "aliases": ["select field", "select control", "dropdown select"],
+      "semantic_terms": ["select", "option", "choose", "dropdown", "selection"],
+      "properties": ["options", "value", "multiple", "placeholder", "disabled"],
+      "content_model": {
+        "required": ["options", "accessible label"],
+        "optional": ["placeholder", "helper text"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["closed", "open", "focused", "disabled", "invalid", "selected"],
+      "variations": ["single select", "multi-select", "native select", "custom select"],
+      "relationships": [
+        {"type": "belongs-to", "target": "Form"},
+        {"type": "associated-with", "target": "Label"}
+      ],
+      "responsive_behavior": ["Options must remain usable on mobile.", "Long option labels should not cause overflow."],
+      "accessibility": ["Maintain keyboard and assistive technology support.", "Provide an accessible label."],
+      "identification_signals": ["Presents predefined choices.", "User selects from a set rather than typing arbitrary content."],
+      "common_problems": ["too many options", "poor mobile interaction", "unclear selected value"],
+      "anti_patterns": ["using Select for a very large searchable dataset without appropriate support"],
+      "alternatives": ["Dropdown Menu", "Search"],
+      "tradeoffs": ["Compact but slower for large option sets."],
+      "implementation_notes": ["Select is primarily a form input; Dropdown Menu is primarily an action/navigation menu."],
+      "verification": ["Options are selectable.", "Selected value is visible.", "Keyboard interaction works."]
+    },
+
+    {
+      "id": "checkbox",
+      "canonical_name": "Checkbox",
+      "category": "forms",
+      "definition": "A form control that represents an independent boolean choice or multiple selectable choices.",
+      "purpose": "Allows independent selection of one or more options.",
+      "aliases": ["check box", "check control"],
+      "semantic_terms": ["checkbox", "check", "checked", "unchecked"],
+      "properties": ["checked", "indeterminate", "disabled", "label"],
+      "content_model": {
+        "required": ["label"],
+        "optional": ["helper text"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["unchecked", "checked", "indeterminate", "focused", "disabled", "invalid"],
+      "variations": ["single checkbox", "checkbox group"],
+      "relationships": [
+        {"type": "belongs-to", "target": "Form"},
+        {"type": "associated-with", "target": "Label"}
+      ],
+      "responsive_behavior": ["Touch target should be easy to activate on mobile."],
+      "accessibility": ["Provide an accessible label.", "Expose checked and indeterminate state."],
+      "identification_signals": ["Represents independent on/off or multi-select choices."],
+      "common_problems": ["tiny hit area", "unclear label", "incorrect grouping"],
+      "anti_patterns": ["using checkbox for mutually exclusive choices"],
+      "alternatives": ["Radio Button"],
+      "tradeoffs": ["Supports multiple independent choices but can become visually dense in large groups."],
+      "implementation_notes": ["Use Radio Button when only one option can be selected."],
+      "verification": ["State changes correctly.", "Label is associated.", "Keyboard operation works."]
+    },
+
+    {
+      "id": "radio-button",
+      "canonical_name": "Radio Button",
+      "category": "forms",
+      "definition": "A form control used to select exactly one option from a mutually exclusive group.",
+      "purpose": "Allows one choice from a set of alternatives.",
+      "aliases": ["radio", "radio control", "radio input"],
+      "semantic_terms": ["radio", "single choice", "option group"],
+      "properties": ["value", "selected", "name", "disabled"],
+      "content_model": {
+        "required": ["options", "labels"],
+        "optional": ["group label", "helper text"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["unselected", "selected", "focused", "disabled", "invalid"],
+      "variations": ["radio group", "horizontal radio group", "vertical radio group"],
+      "relationships": [
+        {"type": "belongs-to", "target": "Form"},
+        {"type": "associated-with", "target": "Label"}
+      ],
+      "responsive_behavior": ["Options commonly stack vertically on mobile."],
+      "accessibility": ["Use proper radio group semantics.", "Expose selected state.", "Keyboard navigation must work."],
+      "identification_signals": ["Multiple circular controls with only one selectable option in a group."],
+      "common_problems": ["allowing multiple selections", "missing group label"],
+      "anti_patterns": ["using radio buttons for independent boolean choices"],
+      "alternatives": ["Checkbox", "Select"],
+      "tradeoffs": ["Fast comparison for small option sets but poor for many options."],
+      "implementation_notes": ["Radio Button represents mutually exclusive selection."],
+      "verification": ["Only one option can be selected.", "Keyboard behavior works."]
+    },
+
+    {
+      "id": "textarea",
+      "canonical_name": "Textarea",
+      "category": "forms",
+      "definition": "A multi-line form control used to collect longer text input.",
+      "purpose": "Collects multi-line or long-form user text.",
+      "aliases": ["text area", "multiline input", "multiline field"],
+      "semantic_terms": ["textarea", "multiline", "long text", "message", "description"],
+      "properties": ["value", "rows", "placeholder", "maxlength", "resize"],
+      "content_model": {
+        "required": ["accessible label"],
+        "optional": ["helper text", "character count", "validation"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["empty", "filled", "focused", "disabled", "readonly", "invalid"],
+      "variations": ["message field", "description field", "comment field"],
+      "relationships": [
+        {"type": "belongs-to", "target": "Form"},
+        {"type": "associated-with", "target": "Label"}
+      ],
+      "responsive_behavior": ["Width should adapt to available space.", "Avoid horizontal overflow."],
+      "accessibility": ["Provide an accessible label.", "Communicate character limits and validation."],
+      "identification_signals": ["Allows multiple lines of text.", "Typically taller than a standard Input."],
+      "common_problems": ["uncontrolled resizing", "missing character guidance", "poor mobile sizing"],
+      "anti_patterns": ["using textarea for a short single-line value"],
+      "alternatives": ["Input"],
+      "tradeoffs": ["Supports rich text input but requires more vertical space."],
+      "implementation_notes": ["Textarea is intended for multi-line plain text unless explicitly enhanced."],
+      "verification": ["Multi-line text can be entered.", "Limits and validation work."]
+    },
+
+    {
+      "id": "label",
+      "canonical_name": "Label",
+      "category": "forms",
+      "definition": "Text that identifies the purpose or expected value of a form control.",
+      "purpose": "Makes form controls understandable and accessible.",
+      "aliases": ["field label", "form label", "input label"],
+      "semantic_terms": ["label", "field name", "form label"],
+      "properties": ["text", "associated control", "required indicator"],
+      "content_model": {
+        "required": ["label text"],
+        "optional": ["required indicator", "help text"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "disabled", "error"],
+      "variations": ["inline label", "stacked label", "floating label"],
+      "relationships": [
+        {"type": "labels", "target": "Input"},
+        {"type": "labels", "target": "Select"},
+        {"type": "labels", "target": "Checkbox"},
+        {"type": "labels", "target": "Radio Button"},
+        {"type": "labels", "target": "Textarea"}
+      ],
+      "responsive_behavior": ["Labels should remain visible and understandable on mobile."],
+      "accessibility": ["Associate labels programmatically with controls where applicable.", "Do not rely solely on placeholder text."],
+      "identification_signals": ["Text directly identifying a nearby form control."],
+      "common_problems": ["unassociated label", "placeholder used instead of label"],
+      "anti_patterns": ["removing labels because the UI looks visually clean"],
+      "alternatives": [],
+      "tradeoffs": ["Visible labels improve comprehension but consume space."],
+      "implementation_notes": ["Label is semantic form metadata, not merely decorative text."],
+      "verification": ["Control has an accessible name.", "Label clearly identifies the control."]
+    },
+
+    {
+      "id": "dialog",
+      "canonical_name": "Dialog",
+      "category": "overlay",
+      "definition": "A modal or non-modal surface that presents focused content or interaction above the current page context.",
+      "purpose": "Focuses attention on a contained task or piece of information.",
+      "aliases": ["dialog box", "dialogue", "dialog window"],
+      "semantic_terms": ["dialog", "dialogue", "overlay", "focused interaction"],
+      "properties": ["title", "content", "actions", "open state"],
+      "content_model": {
+        "required": ["focused content"],
+        "optional": ["title", "Button", "Form", "close control"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["open", "closed"],
+      "variations": ["modal dialog", "non-modal dialog", "alert dialog"],
+      "relationships": [
+        {"type": "may-contain", "target": "Form"},
+        {"type": "may-contain", "target": "Button"},
+        {"type": "may-contain", "target": "Alert"}
+      ],
+      "responsive_behavior": ["May become full-screen or near-full-screen on mobile."],
+      "accessibility": ["Manage focus.", "Provide accessible name.", "Provide an accessible close mechanism when dismissible."],
+      "identification_signals": ["Temporarily presents focused content above or alongside the current context."],
+      "common_problems": ["focus leakage", "inaccessible close control", "content overflow"],
+      "anti_patterns": ["using a dialog for simple navigation"],
+      "alternatives": ["Modal", "Popover", "Drawer"],
+      "tradeoffs": ["Focus improves task completion but interrupts surrounding context."],
+      "implementation_notes": ["Dialog describes the semantic interaction surface; Modal describes modal behavior."],
+      "verification": ["Opening and closing work.", "Focus is correctly managed."]
+    },
+
+    {
+      "id": "modal",
+      "canonical_name": "Modal",
+      "category": "overlay",
+      "definition": "An overlay interaction that prevents normal interaction with the underlying page until the modal interaction is resolved or dismissed.",
+      "purpose": "Creates a focused blocking interaction.",
+      "aliases": ["modal dialog", "modal window", "lightbox"],
+      "semantic_terms": ["modal", "blocking overlay", "backdrop", "overlay"],
+      "properties": ["open", "backdrop", "content", "dismiss behavior"],
+      "content_model": {
+        "required": ["focused content"],
+        "optional": ["title", "actions", "close control"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["open", "closed"],
+      "variations": ["confirmation modal", "form modal", "media modal"],
+      "relationships": [
+        {"type": "may-contain", "target": "Dialog"},
+        {"type": "may-contain", "target": "Form"},
+        {"type": "may-contain", "target": "Image"}
+      ],
+      "responsive_behavior": ["Often expands toward full-screen on mobile."],
+      "accessibility": ["Trap or manage focus appropriately.", "Return focus after closing.", "Provide accessible name and close behavior."],
+      "identification_signals": ["Underlying page is blocked.", "Usually has a backdrop.", "Interaction must be completed or dismissed before returning."],
+      "common_problems": ["focus trap errors", "background interaction remains possible", "mobile overflow"],
+      "anti_patterns": ["using modal for every minor interaction"],
+      "alternatives": ["Dialog", "Popover", "Drawer"],
+      "tradeoffs": ["Strong attention control versus interruption."],
+      "implementation_notes": ["Modal is a behavioral characteristic; Dialog is the semantic surface."],
+      "verification": ["Background cannot be interacted with while modal is active.", "Focus behavior is correct."]
+    },
+
+    {
+      "id": "popover",
+      "canonical_name": "Popover",
+      "category": "overlay",
+      "definition": "A contextual floating surface anchored to a triggering element.",
+      "purpose": "Provides contextual information or controls without leaving the current context.",
+      "aliases": ["popover panel", "floating panel", "context panel"],
+      "semantic_terms": ["popover", "floating panel", "anchored panel", "contextual overlay"],
+      "properties": ["anchor", "placement", "content", "open state"],
+      "content_model": {
+        "required": ["contextual content"],
+        "optional": ["actions", "links", "forms"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["closed", "open"],
+      "variations": ["information popover", "action popover", "form popover"],
+      "relationships": [
+        {"type": "anchored-to", "target": "Button"},
+        {"type": "may-contain", "target": "Menu"},
+        {"type": "may-contain", "target": "Form"}
+      ],
+      "responsive_behavior": ["May reposition or expand on mobile to remain usable."],
+      "accessibility": ["Trigger and popover relationship must be clear.", "Keyboard access must work."],
+      "identification_signals": ["Floating surface positioned relative to a trigger.", "Does not necessarily block the entire page."],
+      "common_problems": ["off-screen positioning", "poor keyboard behavior", "unclear dismissal"],
+      "anti_patterns": ["using popover for essential content that cannot be discovered otherwise"],
+      "alternatives": ["Tooltip", "Dialog", "Dropdown Menu"],
+      "tradeoffs": ["Saves space but can reduce discoverability."],
+      "implementation_notes": ["Popover is generally interactive; Tooltip is primarily informational."],
+      "verification": ["Position remains correct.", "Keyboard and dismissal behavior work."]
+    },
+
+    {
+      "id": "tooltip",
+      "canonical_name": "Tooltip",
+      "category": "feedback",
+      "definition": "A short contextual text label that provides additional information about an interface element.",
+      "purpose": "Clarifies unfamiliar controls or terminology.",
+      "aliases": ["hint", "hover tooltip", "help tooltip"],
+      "semantic_terms": ["tooltip", "hint", "help text", "additional information"],
+      "properties": ["content", "trigger", "placement", "delay"],
+      "content_model": {
+        "required": ["short explanatory text"],
+        "optional": [],
+        "conditional": [],
+        "forbidden": ["primary required instructions"]
+      },
+      "states": ["hidden", "visible"],
+      "variations": ["hover tooltip", "focus tooltip", "icon tooltip"],
+      "relationships": [
+        {"type": "describes", "target": "Button"},
+        {"type": "describes", "target": "Icon"}
+      ],
+      "responsive_behavior": ["Must not depend exclusively on hover on touch devices."],
+      "accessibility": ["Keyboard users must be able to access necessary information.", "Do not put essential information only in tooltips."],
+      "identification_signals": ["Short informational text associated with a control.", "Usually appears temporarily near its trigger."],
+      "common_problems": ["hover-only behavior", "too much text", "mobile inaccessibility"],
+      "anti_patterns": ["using tooltip as the only label for a critical action"],
+      "alternatives": ["Popover", "Label"],
+      "tradeoffs": ["Reduces visible clutter but hides information until interaction."],
+      "implementation_notes": ["Tooltip is primarily informational and should remain brief."],
+      "verification": ["Information is accessible without mouse hover alone."]
+    },
+
+    {
+      "id": "dropdown-menu",
+      "canonical_name": "Dropdown Menu",
+      "category": "navigation",
+      "definition": "A contextual menu that reveals a list of actions or destinations from a trigger.",
+      "purpose": "Provides compact access to related actions or navigation choices.",
+      "aliases": ["dropdown", "menu dropdown", "action menu"],
+      "semantic_terms": ["dropdown menu", "menu", "menu items", "actions"],
+      "properties": ["items", "trigger", "placement", "open state"],
+      "content_model": {
+        "required": ["menu items"],
+        "optional": ["groups", "icons", "dividers"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["closed", "open", "focused", "disabled"],
+      "variations": ["action dropdown", "navigation dropdown", "context menu"],
+      "relationships": [
+        {"type": "triggered-by", "target": "Button"},
+        {"type": "contains", "target": "Menu"}
+      ],
+      "responsive_behavior": ["May expand to a larger touch-friendly surface on mobile."],
+      "accessibility": ["Keyboard navigation must work.", "Expanded state should be communicated."],
+      "identification_signals": ["Hidden list appears after activating a trigger.", "Items represent actions or destinations."],
+      "common_problems": ["inaccessible keyboard behavior", "off-screen positioning", "tiny touch targets"],
+      "anti_patterns": ["using a dropdown for a very small number of always-visible choices"],
+      "alternatives": ["Select", "Popover", "Menu"],
+      "tradeoffs": ["Saves space but hides choices."],
+      "implementation_notes": ["Dropdown Menu is an interactive menu; Select is a form control."],
+      "verification": ["Menu opens and closes correctly.", "All items are reachable."]
+    },
+
+    {
+      "id": "tabs",
+      "canonical_name": "Tabs",
+      "category": "navigation",
+      "definition": "A set of controls that switches between related content panels within the same contextual area.",
+      "purpose": "Organizes related content without requiring separate navigation.",
+      "aliases": ["tab navigation", "tab list", "tabbed interface"],
+      "semantic_terms": ["tabs", "tab", "tab panel", "tab list"],
+      "properties": ["items", "active tab", "panels"],
+      "content_model": {
+        "required": ["tab items", "associated content panels"],
+        "optional": ["icons", "badges"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["active", "inactive", "focused", "disabled"],
+      "variations": ["horizontal tabs", "vertical tabs", "scrollable tabs"],
+      "relationships": [
+        {"type": "controls", "target": "Section"},
+        {"type": "contains", "target": "Button"}
+      ],
+      "responsive_behavior": ["May become horizontally scrollable or vertically stacked on mobile."],
+      "accessibility": ["Use proper tab semantics when appropriate.", "Keyboard navigation must work.", "Active tab must be clear."],
+      "identification_signals": ["Multiple peer controls switch content within the same region.", "Only one panel is typically active at a time."],
+      "common_problems": ["too many tabs", "mobile overflow", "incorrect keyboard interaction"],
+      "anti_patterns": ["using tabs for unrelated destinations"],
+      "alternatives": ["Navigation", "Accordion"],
+      "tradeoffs": ["Efficient content switching but hidden content can be overlooked."],
+      "implementation_notes": ["Tabs are for related peer content, not primary site navigation."],
+      "verification": ["Correct panel displays for each tab.", "Keyboard navigation works."]
+    },
+
+    {
+      "id": "accordion",
+      "canonical_name": "Accordion",
+      "category": "disclosure",
+      "definition": "A vertically organized set of expandable and collapsible content panels.",
+      "purpose": "Progressively reveals content while conserving vertical space.",
+      "aliases": ["collapsible", "disclosure list", "expandable panels"],
+      "semantic_terms": ["accordion", "expand", "collapse", "disclosure"],
+      "properties": ["items", "expanded item", "allow multiple"],
+      "content_model": {
+        "required": ["trigger labels", "content panels"],
+        "optional": ["icons", "badges"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["expanded", "collapsed", "focused", "disabled"],
+      "variations": ["single-expand accordion", "multi-expand accordion"],
+      "relationships": [
+        {"type": "contains", "target": "Section"},
+        {"type": "triggered-by", "target": "Button"}
+      ],
+      "responsive_behavior": ["Particularly suitable for narrow screens.", "Panels should not cause horizontal overflow."],
+      "accessibility": ["Expanded state must be communicated.", "Keyboard access required."],
+      "identification_signals": ["Repeated headings or triggers expand/collapse associated content vertically."],
+      "common_problems": ["unclear state", "hidden important content", "poor keyboard behavior"],
+      "anti_patterns": ["hiding essential information that users must always see"],
+      "alternatives": ["Tabs", "Section"],
+      "tradeoffs": ["Saves vertical space but hides information."],
+      "implementation_notes": ["Accordion is a progressive disclosure pattern."],
+      "verification": ["Each panel expands and collapses predictably."]
+    },
+
+    {
+      "id": "table",
+      "canonical_name": "Table",
+      "category": "data-display",
+      "definition": "A structured presentation of related data arranged in rows and columns.",
+      "purpose": "Enables comparison and scanning of structured data.",
+      "aliases": ["data table", "tabular data"],
+      "semantic_terms": ["table", "row", "column", "cell", "header"],
+      "properties": ["columns", "rows", "headers", "sorting", "pagination"],
+      "content_model": {
+        "required": ["rows", "columns"],
+        "optional": ["headers", "caption", "actions"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "loading", "empty", "error", "selected"],
+      "variations": ["simple table", "sortable table", "responsive table", "data table"],
+      "relationships": [
+        {"type": "may-contain", "target": "Button"},
+        {"type": "may-contain", "target": "Badge"},
+        {"type": "may-use", "target": "Pagination"}
+      ],
+      "responsive_behavior": [
+        "May scroll horizontally when necessary.",
+        "May transform into stacked records on mobile when semantics permit."
+      ],
+      "accessibility": ["Use proper table semantics.", "Provide meaningful headers.", "Avoid forcing complex tables into inaccessible layouts."],
+      "identification_signals": ["Data is explicitly organized into rows and columns.", "Column relationships are meaningful."],
+      "common_problems": ["mobile overflow", "missing headers", "overly dense data"],
+      "anti_patterns": ["using tables purely for page layout"],
+      "alternatives": ["List", "Card"],
+      "tradeoffs": ["Excellent for comparison but can be difficult on narrow screens."],
+      "implementation_notes": ["Table should be used for tabular relationships, not generic layout."],
+      "verification": ["Headers correctly identify data.", "Mobile strategy works."]
+    },
+
+    {
+      "id": "list",
+      "canonical_name": "List",
+      "category": "content",
+      "definition": "A collection of related items presented as an ordered, unordered, or structured sequence.",
+      "purpose": "Organizes repeated related content.",
+      "aliases": ["list", "item list", "collection"],
+      "semantic_terms": ["list", "items", "collection", "entries"],
+      "properties": ["items", "ordering", "item structure"],
+      "content_model": {
+        "required": ["list items"],
+        "optional": ["icons", "actions", "metadata"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "loading", "empty", "selected"],
+      "variations": ["ordered list", "unordered list", "media list", "interactive list"],
+      "relationships": [
+        {"type": "contains", "target": "Card"},
+        {"type": "may-contain", "target": "Link"},
+        {"type": "may-contain", "target": "Button"}
+      ],
+      "responsive_behavior": ["Items may stack vertically and adapt spacing on mobile."],
+      "accessibility": ["Use appropriate list semantics.", "Preserve meaningful item order."],
+      "identification_signals": ["Repeated peer items share a common structure."],
+      "common_problems": ["inconsistent item structure", "overly dense lists"],
+      "anti_patterns": ["using unrelated content as one list"],
+      "alternatives": ["Table", "Card"],
+      "tradeoffs": ["Simple and scalable but can become visually repetitive."],
+      "implementation_notes": ["List is appropriate when items share semantic structure."],
+      "verification": ["Items have consistent semantics and order."]
+    },
+
+    {
+      "id": "pagination",
+      "canonical_name": "Pagination",
+      "category": "navigation",
+      "definition": "A navigation mechanism that divides a collection of content into discrete pages or result sets.",
+      "purpose": "Allows users to move through large datasets or content collections.",
+      "aliases": ["page navigation", "page selector", "pagination control"],
+      "semantic_terms": ["pagination", "page", "next", "previous", "results"],
+      "properties": ["current page", "total pages", "next", "previous"],
+      "content_model": {
+        "required": ["page navigation controls"],
+        "optional": ["first", "last", "page numbers"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "current", "disabled"],
+      "variations": ["numbered pagination", "next-previous pagination", "compact pagination"],
+      "relationships": [
+        {"type": "controls", "target": "List"},
+        {"type": "controls", "target": "Table"}
+      ],
+      "responsive_behavior": ["Controls may simplify on mobile.", "Touch targets must remain usable."],
+      "accessibility": ["Current page must be identifiable.", "Controls need accessible labels."],
+      "identification_signals": ["Controls represent discrete pages of a larger collection."],
+      "common_problems": ["unclear current page", "too many page numbers", "mobile overflow"],
+      "anti_patterns": ["pagination for very small datasets"],
+      "alternatives": ["List", "Progress"],
+      "tradeoffs": ["Improves performance and scanning but introduces navigation steps."],
+      "implementation_notes": ["Pagination is appropriate for discrete result sets."],
+      "verification": ["Current, next, and previous states work correctly."]
+    },
+
+    {
+      "id": "breadcrumb",
+      "canonical_name": "Breadcrumb",
+      "category": "navigation",
+      "definition": "A hierarchical navigation trail showing the user's location within a site or application structure.",
+      "purpose": "Provides contextual location and upward navigation.",
+      "aliases": ["breadcrumb navigation", "breadcrumb trail", "location trail"],
+      "semantic_terms": ["breadcrumb", "home", "parent", "current location", "hierarchy"],
+      "properties": ["items", "current item", "separator"],
+      "content_model": {
+        "required": ["hierarchical items"],
+        "optional": ["home item", "icons"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "current"],
+      "variations": ["simple breadcrumb", "collapsed breadcrumb", "mobile breadcrumb"],
+      "relationships": [
+        {"type": "targets", "target": "Route"},
+        {"type": "belongs-to", "target": "Navigation"}
+      ],
+      "responsive_behavior": ["May collapse intermediate levels on mobile.", "Must avoid horizontal overflow."],
+      "accessibility": ["Use navigation semantics.", "Identify the current page."],
+      "identification_signals": ["Displays hierarchical path such as Home > Category > Current Page."],
+      "common_problems": ["too many levels", "overflow", "unclear current item"],
+      "anti_patterns": ["using breadcrumbs where no hierarchy exists"],
+      "alternatives": ["Navigation"],
+      "tradeoffs": ["Provides context but adds little value for shallow structures."],
+      "implementation_notes": ["Breadcrumb represents hierarchy, not merely browser history."],
+      "verification": ["Hierarchy matches actual information architecture."]
+    },
+
+    {
+      "id": "badge",
+      "canonical_name": "Badge",
+      "category": "status",
+      "definition": "A compact visual label used to communicate status, category, count, or metadata.",
+      "purpose": "Provides concise contextual information.",
+      "aliases": ["tag", "status badge", "label badge", "chip label"],
+      "semantic_terms": ["badge", "status", "tag", "label", "count"],
+      "properties": ["text", "status", "variant", "count"],
+      "content_model": {
+        "required": ["short label or value"],
+        "optional": ["Icon"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default"],
+      "variations": ["status badge", "count badge", "category badge"],
+      "relationships": [
+        {"type": "may-appear-in", "target": "Card"},
+        {"type": "may-appear-in", "target": "List"},
+        {"type": "may-appear-in", "target": "Table"}
+      ],
+      "responsive_behavior": ["Should remain compact without becoming unreadable."],
+      "accessibility": ["Status information must not rely only on color."],
+      "identification_signals": ["Small compact label attached to another content item."],
+      "common_problems": ["color-only status", "too much text"],
+      "anti_patterns": ["using badges for primary actions"],
+      "alternatives": ["Alert"],
+      "tradeoffs": ["Compact but limited space for explanation."],
+      "implementation_notes": ["Badge is informational, not primarily interactive."],
+      "verification": ["Meaning remains clear without color alone."]
+    },
+
+    {
+      "id": "alert",
+      "canonical_name": "Alert",
+      "category": "feedback",
+      "definition": "A visible message that communicates important information, status, warning, or error to the user.",
+      "purpose": "Communicates information that requires user awareness.",
+      "aliases": ["alert message", "notification", "status message"],
+      "semantic_terms": ["alert", "warning", "error", "success", "notice"],
+      "properties": ["severity", "message", "dismissible", "actions"],
+      "content_model": {
+        "required": ["message"],
+        "optional": ["title", "Icon", "Button", "dismiss control"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["info", "success", "warning", "error"],
+      "variations": ["inline alert", "page alert", "form alert"],
+      "relationships": [
+        {"type": "may-contain", "target": "Button"},
+        {"type": "may-appear-in", "target": "Form"}
+      ],
+      "responsive_behavior": ["Messages should wrap naturally on mobile."],
+      "accessibility": ["Use appropriate live-region behavior when needed.", "Do not rely solely on color."],
+      "identification_signals": ["Prominent message communicates system or contextual status."],
+      "common_problems": ["unclear severity", "color-only meaning", "overuse"],
+      "anti_patterns": ["using alerts for ordinary page content"],
+      "alternatives": ["Toast", "Badge"],
+      "tradeoffs": ["Persistent visibility improves awareness but consumes space."],
+      "implementation_notes": ["Alert is generally persistent or inline compared with Toast."],
+      "verification": ["Message is visible and understandable."]
+    },
+
+    {
+      "id": "toast",
+      "canonical_name": "Toast",
+      "category": "feedback",
+      "definition": "A temporary notification that appears independently of the main document flow.",
+      "purpose": "Provides brief feedback about an action or event.",
+      "aliases": ["toast notification", "snackbar", "temporary notification"],
+      "semantic_terms": ["toast", "snackbar", "notification", "temporary message"],
+      "properties": ["message", "duration", "position", "severity", "dismissible"],
+      "content_model": {
+        "required": ["short message"],
+        "optional": ["action", "dismiss control", "Icon"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["appearing", "visible", "dismissing"],
+      "variations": ["success toast", "error toast", "action toast"],
+      "relationships": [
+        {"type": "triggered-by", "target": "Button"},
+        {"type": "may-contain", "target": "Link"}
+      ],
+      "responsive_behavior": ["Must remain visible without covering critical mobile controls."],
+      "accessibility": ["Important messages must remain perceivable.", "Do not make critical information disappear too quickly."],
+      "identification_signals": ["Temporary message appears outside normal document flow.", "Usually disappears automatically or after dismissal."],
+      "common_problems": ["too-short duration", "mobile obstruction", "unreadable notifications"],
+      "anti_patterns": ["using toast for critical information that must persist"],
+      "alternatives": ["Alert"],
+      "tradeoffs": ["Low interruption but easy to miss."],
+      "implementation_notes": ["Toast is transient; Alert is generally persistent."],
+      "verification": ["Notification appears and dismisses correctly."]
+    },
+
+    {
+      "id": "progress",
+      "canonical_name": "Progress",
+      "category": "feedback",
+      "definition": "A visual indicator communicating the completion level of a task or process.",
+      "purpose": "Shows measurable progress toward completion.",
+      "aliases": ["progress bar", "progress indicator", "completion indicator"],
+      "semantic_terms": ["progress", "completion", "percent", "percentage"],
+      "properties": ["value", "maximum", "label"],
+      "content_model": {
+        "required": ["progress value or determinate state"],
+        "optional": ["label", "percentage"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["determinate", "indeterminate", "complete"],
+      "variations": ["linear progress", "circular progress"],
+      "relationships": [
+        {"type": "may-appear-in", "target": "Form"},
+        {"type": "may-appear-in", "target": "Page"}
+      ],
+      "responsive_behavior": ["Should scale with available width."],
+      "accessibility": ["Expose progress value when determinate.", "Communicate indeterminate status appropriately."],
+      "identification_signals": ["Shows a measurable amount of completion."],
+      "common_problems": ["unclear scale", "false precision", "missing accessible value"],
+      "anti_patterns": ["using progress when no measurable progress exists"],
+      "alternatives": ["Spinner"],
+      "tradeoffs": ["Determinate progress reassures users; inaccurate progress is misleading."],
+      "implementation_notes": ["Use Progress for measurable task completion."],
+      "verification": ["Displayed progress corresponds to actual process state."]
+    },
+
+    {
+      "id": "spinner",
+      "canonical_name": "Spinner",
+      "category": "feedback",
+      "definition": "An animated indicator used to communicate an ongoing indeterminate operation or loading state.",
+      "purpose": "Shows that a process is currently active.",
+      "aliases": ["loading spinner", "loader", "loading indicator"],
+      "semantic_terms": ["spinner", "loading", "loader", "busy"],
+      "properties": ["size", "label", "duration"],
+      "content_model": {
+        "required": ["loading indication"],
+        "optional": ["accessible label"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["active", "hidden"],
+      "variations": ["inline spinner", "button spinner", "page spinner"],
+      "relationships": [
+        {"type": "may-appear-in", "target": "Button"},
+        {"type": "may-appear-in", "target": "Form"},
+        {"type": "may-appear-in", "target": "Page"}
+      ],
+      "responsive_behavior": ["Must remain visible at appropriate size on small screens."],
+      "accessibility": ["Provide an accessible loading status when needed."],
+      "identification_signals": ["Animated circular or similar indicator without measurable completion."],
+      "common_problems": ["indefinite loading", "no accessible status", "excessive animation"],
+      "anti_patterns": ["using spinner when actual progress can be communicated"],
+      "alternatives": ["Progress", "Skeleton"],
+      "tradeoffs": ["Simple but provides little information about completion time."],
+      "implementation_notes": ["Spinner communicates activity, not percentage completion."],
+      "verification": ["Appears only during active loading."]
+    },
+
+    {
+      "id": "skeleton",
+      "canonical_name": "Skeleton",
+      "category": "feedback",
+      "definition": "A placeholder representation of content shown while the actual content is loading.",
+      "purpose": "Preserves layout context and reduces perceived loading disruption.",
+      "aliases": ["skeleton loader", "content placeholder", "loading placeholder"],
+      "semantic_terms": ["skeleton", "placeholder", "loading content", "shimmer"],
+      "properties": ["shape", "size", "animation", "layout"],
+      "content_model": {
+        "required": ["placeholder structure"],
+        "optional": ["animation"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["loading", "hidden"],
+      "variations": ["text skeleton", "card skeleton", "image skeleton", "list skeleton"],
+      "relationships": [
+        {"type": "represents", "target": "Card"},
+        {"type": "represents", "target": "List"},
+        {"type": "represents", "target": "Image"}
+      ],
+      "responsive_behavior": ["Skeleton dimensions should correspond to the responsive content layout."],
+      "accessibility": ["Loading state should be communicated appropriately.", "Avoid unnecessary animation."],
+      "identification_signals": ["Placeholder shapes mimic expected content structure."],
+      "common_problems": ["layout mismatch", "excessive animation", "skeleton shown too long"],
+      "anti_patterns": ["using skeleton when content appears instantly"],
+      "alternatives": ["Spinner"],
+      "tradeoffs": ["Maintains layout but requires matching placeholder design."],
+      "implementation_notes": ["Skeleton is useful when content structure is known before data arrives."],
+      "verification": ["Loaded content matches placeholder structure closely."]
+    },
+
+    {
+      "id": "avatar",
+      "canonical_name": "Avatar",
+      "category": "identity",
+      "definition": "A compact visual representation of a person, account, or entity.",
+      "purpose": "Provides recognizable identity context.",
+      "aliases": ["profile image", "user avatar", "profile avatar"],
+      "semantic_terms": ["avatar", "profile", "user", "person", "identity"],
+      "properties": ["image", "fallback", "size", "name"],
+      "content_model": {
+        "required": ["identity representation"],
+        "optional": ["Image", "initials", "status indicator"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["loaded", "fallback", "error"],
+      "variations": ["image avatar", "initials avatar", "group avatar"],
+      "relationships": [
+        {"type": "may-contain", "target": "Image"},
+        {"type": "may-appear-in", "target": "Card"},
+        {"type": "may-appear-in", "target": "Header"}
+      ],
+      "responsive_behavior": ["Size may reduce on mobile while remaining recognizable."],
+      "accessibility": ["Provide appropriate alternative text or accessible name when meaningful."],
+      "identification_signals": ["Small circular or bounded representation of a person/entity."],
+      "common_problems": ["broken image", "missing fallback", "insufficient contrast"],
+      "anti_patterns": ["using avatar as the only indicator of identity when text is required"],
+      "alternatives": ["Image", "Icon"],
+      "tradeoffs": ["Compact identity representation versus limited detail."],
+      "implementation_notes": ["Avatar is identity-oriented; Image is generic media."],
+      "verification": ["Identity remains understandable when image fails."]
+    },
+
+    {
+      "id": "image",
+      "canonical_name": "Image",
+      "category": "media",
+      "definition": "A visual media element used to communicate, illustrate, or decorate content.",
+      "purpose": "Presents visual information or supporting imagery.",
+      "aliases": ["photo", "picture", "graphic", "image asset"],
+      "semantic_terms": ["image", "photo", "picture", "visual", "media"],
+      "properties": ["source", "alternative text", "width", "height", "loading"],
+      "content_model": {
+        "required": ["image source"],
+        "optional": ["caption", "alternative text"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["loading", "loaded", "error"],
+      "variations": ["decorative image", "content image", "responsive image", "thumbnail"],
+      "relationships": [
+        {"type": "may-appear-in", "target": "Card"},
+        {"type": "may-appear-in", "target": "Hero"},
+        {"type": "may-appear-in", "target": "Avatar"}
+      ],
+      "responsive_behavior": ["Images should scale without distortion or overflow.", "Use responsive image strategies where appropriate."],
+      "accessibility": ["Provide appropriate alternative text for meaningful images.", "Decorative images should not create unnecessary accessibility noise."],
+      "identification_signals": ["Displays raster or vector visual media."],
+      "common_problems": ["missing alt text", "layout shift", "oversized assets"],
+      "anti_patterns": ["embedding essential text only inside images"],
+      "alternatives": ["Icon"],
+      "tradeoffs": ["Visual communication versus bandwidth and accessibility requirements."],
+      "implementation_notes": ["Image is media; Icon is typically symbolic UI graphics."],
+      "verification": ["Image loads correctly.", "Alternative text strategy is correct.", "No unwanted layout shift."]
+    },
+
+    {
+      "id": "icon",
+      "canonical_name": "Icon",
+      "category": "visual",
+      "definition": "A compact symbolic graphic representing an action, concept, status, or object.",
+      "purpose": "Provides compact visual recognition and supports interface meaning.",
+      "aliases": ["symbol", "UI icon", "glyph"],
+      "semantic_terms": ["icon", "symbol", "glyph", "action icon"],
+      "properties": ["symbol", "size", "label", "meaning"],
+      "content_model": {
+        "required": ["symbol or graphic"],
+        "optional": ["accessible label"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "active", "disabled", "selected"],
+      "variations": ["decorative icon", "action icon", "status icon"],
+      "relationships": [
+        {"type": "may-appear-in", "target": "Button"},
+        {"type": "may-appear-in", "target": "Link"},
+        {"type": "may-appear-in", "target": "Badge"}
+      ],
+      "responsive_behavior": ["Maintain usable size and visual clarity on small screens."],
+      "accessibility": ["Decorative icons should not add unnecessary accessible content.", "Meaningful icons need accessible names."],
+      "identification_signals": ["Small symbolic graphic with compact semantic meaning."],
+      "common_problems": ["icon-only controls without labels", "inconsistent icon meaning"],
+      "anti_patterns": ["using icons as unexplained replacement for all text"],
+      "alternatives": ["Image"],
+      "tradeoffs": ["Compact but can be ambiguous without labels."],
+      "implementation_notes": ["Icon is a symbolic UI element rather than general imagery."],
+      "verification": ["Meaning remains clear.", "Accessible labeling is appropriate."]
+    },
+
+    {
+      "id": "video",
+      "canonical_name": "Video",
+      "category": "media",
+      "definition": "A media component used to present moving visual and audio content.",
+      "purpose": "Communicates information or experiences through time-based media.",
+      "aliases": ["video player", "media player", "video content"],
+      "semantic_terms": ["video", "playback", "player", "media"],
+      "properties": ["source", "poster", "controls", "autoplay", "muted"],
+      "content_model": {
+        "required": ["video source"],
+        "optional": ["poster", "captions", "controls"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["idle", "playing", "paused", "loading", "error", "ended"],
+      "variations": ["embedded video", "background video", "video player"],
+      "relationships": [
+        {"type": "may-appear-in", "target": "Hero"},
+        {"type": "may-appear-in", "target": "Section"}
+      ],
+      "responsive_behavior": ["Maintain aspect ratio.", "Controls must remain usable on mobile."],
+      "accessibility": ["Provide captions where applicable.", "Controls must be keyboard accessible.", "Provide meaningful alternatives where necessary."],
+      "identification_signals": ["Time-based visual media with playback controls or automatic playback."],
+      "common_problems": ["autoplay issues", "large bandwidth usage", "missing captions"],
+      "anti_patterns": ["autoplaying audio without user intent"],
+      "alternatives": ["Image"],
+      "tradeoffs": ["Rich communication versus bandwidth and interaction cost."],
+      "implementation_notes": ["Video should adapt to viewport width and connection conditions."],
+      "verification": ["Playback works.", "Controls work.", "Responsive sizing is correct."]
+    },
+
+    {
+      "id": "carousel",
+      "canonical_name": "Carousel",
+      "category": "content",
+      "definition": "A rotating or horizontally navigable presentation of multiple related items within a shared viewport.",
+      "purpose": "Presents multiple items while conserving space.",
+      "aliases": ["slider", "slideshow", "content slider"],
+      "semantic_terms": ["carousel", "slider", "slide", "slideshow"],
+      "properties": ["slides", "current slide", "controls", "autoplay"],
+      "content_model": {
+        "required": ["multiple related items"],
+        "optional": ["navigation controls", "indicators", "autoplay"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["idle", "active", "transitioning", "paused"],
+      "variations": ["image carousel", "content carousel", "testimonial carousel", "product carousel"],
+      "relationships": [
+        {"type": "contains", "target": "Image"},
+        {"type": "may-contain", "target": "Card"},
+        {"type": "may-contain", "target": "Button"}
+      ],
+      "responsive_behavior": [
+        "May display fewer items on mobile.",
+        "Swipe interaction may be supported.",
+        "Controls must remain accessible."
+      ],
+      "accessibility": ["Users must be able to pause automatic movement.", "Slides should be navigable without pointer gestures alone."],
+      "identification_signals": ["Multiple items share one viewport.", "Previous/next or swipe interaction changes visible item."],
+      "common_problems": ["poor discoverability", "automatic movement", "mobile interaction issues"],
+      "anti_patterns": ["hiding critical content exclusively inside a carousel"],
+      "alternatives": ["List", "Tabs"],
+      "tradeoffs": ["Saves space but reduces simultaneous visibility."],
+      "implementation_notes": ["Carousels should not hide essential information from users who cannot interact with them."],
+      "verification": ["All slides are reachable.", "Controls and swipe behavior work where supported."]
+    },
+
+    {
+      "id": "search",
+      "canonical_name": "Search",
+      "category": "navigation",
+      "definition": "A component that allows users to locate content, resources, or records by entering or selecting search criteria.",
+      "purpose": "Provides direct access to information across a potentially large collection.",
+      "aliases": ["search field", "site search", "search box", "search form"],
+      "semantic_terms": ["search", "find", "query", "results", "search field"],
+      "properties": ["query", "results", "filters", "suggestions"],
+      "content_model": {
+        "required": ["search input or trigger"],
+        "optional": ["filters", "suggestions", "results"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["empty", "typing", "loading", "results", "no-results", "error"],
+      "variations": ["site search", "global search", "instant search", "search with suggestions"],
+      "relationships": [
+        {"type": "may-contain", "target": "Input"},
+        {"type": "may-contain", "target": "Button"},
+        {"type": "produces", "target": "List"}
+      ],
+      "responsive_behavior": ["May expand or become a dedicated screen on mobile.", "Input and controls must remain touch-friendly."],
+      "accessibility": ["Provide accessible label.", "Clearly communicate loading and result states."],
+      "identification_signals": ["Accepts a query intended to locate matching content or records."],
+      "common_problems": ["poor empty state", "slow feedback", "unclear query"],
+      "anti_patterns": ["search for collections small enough to browse directly"],
+      "alternatives": ["Select", "Navigation"],
+      "tradeoffs": ["Efficient for large collections but requires good result relevance."],
+      "implementation_notes": ["Search is a task-oriented discovery component."],
+      "verification": ["Queries execute correctly.", "Results and no-results states are clear."]
+    },
+
+    {
+      "id": "menu",
+      "canonical_name": "Menu",
+      "category": "navigation",
+      "definition": "A structured collection of commands, actions, or destinations presented as selectable items.",
+      "purpose": "Groups related choices into a compact interaction surface.",
+      "aliases": ["menu list", "command menu", "navigation menu"],
+      "semantic_terms": ["menu", "menu item", "commands", "choices"],
+      "properties": ["items", "groups", "selected item", "disabled items"],
+      "content_model": {
+        "required": ["menu items"],
+        "optional": ["groups", "icons", "dividers", "shortcuts"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["closed", "open", "focused", "selected", "disabled"],
+      "variations": ["navigation menu", "action menu", "context menu", "command menu"],
+      "relationships": [
+        {"type": "may-be-contained-by", "target": "Dropdown Menu"},
+        {"type": "may-be-contained-by", "target": "App Drawer"},
+        {"type": "contains", "target": "Link"}
+      ],
+      "responsive_behavior": ["May become full-width or stacked on mobile."],
+      "accessibility": ["Use appropriate menu semantics when applicable.", "Keyboard navigation must work."],
+      "identification_signals": ["Contains a collection of peer selectable commands or destinations."],
+      "common_problems": ["unclear grouping", "keyboard navigation errors", "tiny touch targets"],
+      "anti_patterns": ["using menu semantics for arbitrary static lists"],
+      "alternatives": ["Navigation", "Dropdown Menu", "List"],
+      "tradeoffs": ["Compact choice presentation versus hidden options."],
+      "implementation_notes": ["Menu is the collection; Dropdown Menu describes a menu revealed from a trigger."],
+      "verification": ["All items are reachable and understandable."]
+    },
+
+    {
+      "id": "drawer",
+      "canonical_name": "Drawer",
+      "category": "overlay",
+      "definition": "A panel that slides or appears from an edge of the viewport to present content or controls.",
+      "purpose": "Provides additional content or controls without permanently occupying page space.",
+      "aliases": ["side drawer", "slide-out panel", "off-canvas panel"],
+      "semantic_terms": ["drawer", "slide-out", "off-canvas", "side panel"],
+      "properties": ["position", "open", "size", "content", "dismiss behavior"],
+      "content_model": {
+        "required": ["panel content"],
+        "optional": ["title", "Button", "Form", "Navigation"],
+        "conditional": ["close control for dismissible drawers"],
+        "forbidden": []
+      },
+      "states": ["open", "closed"],
+      "variations": ["left drawer", "right drawer", "bottom drawer", "mobile drawer"],
+      "relationships": [
+        {"type": "may-contain", "target": "Form"},
+        {"type": "may-contain", "target": "Navigation"},
+        {"type": "may-contain", "target": "Menu"}
+      ],
+      "responsive_behavior": ["Especially useful for mobile interfaces.", "May occupy more viewport width on small screens."],
+      "accessibility": ["Manage focus for modal drawers.", "Provide accessible name and close control."],
+      "identification_signals": ["Panel enters from a viewport edge.", "Usually hidden until triggered."],
+      "common_problems": ["background interaction", "focus errors", "content overflow"],
+      "anti_patterns": ["using Drawer when persistent navigation is semantically more appropriate"],
+      "alternatives": ["App Drawer", "Dialog", "Modal"],
+      "tradeoffs": ["Preserves page space but temporarily hides content behind an overlay."],
+      "implementation_notes": ["Drawer is generic; App Drawer specifically represents primary application navigation."],
+      "verification": ["Opening, closing, focus, and mobile behavior work."]
+    },
+
+    {
+      "id": "calendar",
+      "canonical_name": "Calendar",
+      "category": "date-time",
+      "definition": "A visual representation of dates organized into calendar periods such as months, weeks, or days.",
+      "purpose": "Allows users to understand, browse, or interact with dates.",
+      "aliases": ["date calendar", "calendar view", "calendar grid"],
+      "semantic_terms": ["calendar", "month", "week", "day", "date"],
+      "properties": ["current date", "selected date", "month", "events"],
+      "content_model": {
+        "required": ["date structure"],
+        "optional": ["events", "navigation controls", "selection"],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": ["default", "selected", "today", "disabled", "focused"],
+      "variations": ["month calendar", "week calendar", "event calendar", "date calendar"],
+      "relationships": [
+        {"type": "may-be-used-by", "target": "Date Picker"},
+        {"type": "may-contain", "target": "Button"}
+      ],
+      "responsive_behavior": ["Calendar may switch to a more compact or list-oriented mobile presentation."],
+      "accessibility": ["Dates must be keyboard navigable where interactive.", "Selected and current dates must be distinguishable."],
+      "identification_signals": ["Displays dates in a grid or chronological calendar structure."],
+      "common_problems": ["mobile density", "unclear selected date", "keyboard navigation issues"],
+      "anti_patterns": ["using a full calendar for a simple single-date choice"],
+      "alternatives": ["Date Picker"],
+      "tradeoffs": ["Excellent for date context but can be excessive for simple selection."],
+      "implementation_notes": ["Calendar represents date visualization; Date Picker represents date selection interaction."],
+      "verification": ["Dates are correctly represented.", "Navigation and selection work where interactive."]
+    },
+
+    {
+      "id": "date-picker",
+      "canonical_name": "Date Picker",
+      "category": "forms",
+      "definition": "A form control that allows users to select a date or date range.",
+      "purpose": "Provides structured date selection.",
+      "aliases": ["date selector", "date input", "date selection control"],
+      "semantic_terms": ["date picker", "select date", "date input", "date range"],
+      "properties": ["selected date", "minimum date", "maximum date", "format", "range"],
+      "content_model": {
+        "required": ["date selection mechanism"],
+        "optional": ["Calendar", "Input", "placeholder", "helper text"],
+        "conditional": ["date range controls"],
+        "forbidden": []
+      },
+      "states": ["empty", "selected", "open", "focused", "disabled", "invalid"],
+      "variations": ["single date picker", "date range picker", "inline date picker"],
+      "relationships": [
+        {"type": "may-contain", "target": "Calendar"},
+        {"type": "may-contain", "target": "Input"},
+        {"type": "belongs-to", "target": "Form"}
+      ],
+      "responsive_behavior": ["Calendar surface should adapt to mobile viewport.", "Touch targets must remain usable."],
+      "accessibility": ["Keyboard date selection must work.", "Selected date must be announced appropriately.", "Input must have an accessible label."],
+      "identification_signals": ["User is explicitly selecting a date as form data.", "Often opens a Calendar interface."],
+      "common_problems": ["date format ambiguity", "mobile overflow", "poor keyboard selection"],
+      "anti_patterns": ["ambiguous date formats"],
+      "alternatives": ["Input", "Calendar"],
+      "tradeoffs": ["Visual selection reduces date-format errors but adds interaction complexity."],
+      "implementation_notes": ["Date Picker is an input component; Calendar is the date visualization mechanism it may use."],
+      "verification": ["Selected date is correct.", "Format is unambiguous.", "Mobile and keyboard interaction work."]
+    }
+
+  ],
+
+  "identification_rules": [
+    {
+      "id": "button-vs-link",
+      "rule": "Use Button when the primary purpose is performing an action. Use Link when the primary purpose is navigating to another destination.",
+      "preferred": {
+        "action": "Button",
+        "navigation": "Link"
+      }
+    },
+    {
+      "id": "app-drawer-vs-navigation",
+      "rule": "Use App Drawer when primary application navigation is presented through a side, collapsible, or off-canvas navigation surface. Use Navigation for the navigation system itself.",
+      "preferred": {
+        "primary_side_navigation_surface": "App Drawer",
+        "navigation_system": "Navigation"
+      }
+    },
+    {
+      "id": "app-drawer-vs-drawer",
+      "rule": "Use App Drawer for primary application navigation. Use Drawer for a generic edge-originating panel containing arbitrary content or controls.",
+      "preferred": {
+        "application_navigation": "App Drawer",
+        "generic_panel": "Drawer"
+      }
+    },
+    {
+      "id": "dialog-vs-modal",
+      "rule": "Dialog identifies the focused interaction surface. Modal identifies the blocking behavior that prevents interaction with the underlying page.",
+      "preferred": {
+        "semantic_surface": "Dialog",
+        "blocking_behavior": "Modal"
+      }
+    },
+    {
+      "id": "popover-vs-tooltip",
+      "rule": "Use Popover for interactive contextual content. Use Tooltip for short supplementary information.",
+      "preferred": {
+        "interactive_context": "Popover",
+        "short_information": "Tooltip"
+      }
+    },
+    {
+      "id": "dropdown-menu-vs-select",
+      "rule": "Use Select for choosing form values. Use Dropdown Menu for actions or navigation choices.",
+      "preferred": {
+        "form_selection": "Select",
+        "actions_or_navigation": "Dropdown Menu"
+      }
+    },
+    {
+      "id": "menu-vs-navigation",
+      "rule": "Use Navigation for a destination-oriented navigation system. Use Menu for a structured collection of commands or choices.",
+      "preferred": {
+        "destination_system": "Navigation",
+        "command_collection": "Menu"
+      }
+    },
+    {
+      "id": "tabs-vs-navigation",
+      "rule": "Use Tabs to switch between related content within the same context. Use Navigation to move between destinations.",
+      "preferred": {
+        "same_context_content_switching": "Tabs",
+        "destination_change": "Navigation"
+      }
+    },
+    {
+      "id": "tabs-vs-accordion",
+      "rule": "Use Tabs when users switch between peer content panels. Use Accordion when users expand or collapse vertically organized content.",
+      "preferred": {
+        "peer_panels": "Tabs",
+        "expandable_content": "Accordion"
+      }
+    },
+    {
+      "id": "alert-vs-toast",
+      "rule": "Use Alert for persistent or important visible messages. Use Toast for temporary feedback.",
+      "preferred": {
+        "persistent_message": "Alert",
+        "temporary_feedback": "Toast"
+      }
+    },
+    {
+      "id": "progress-vs-spinner",
+      "rule": "Use Progress when completion can be measured. Use Spinner when activity is indeterminate.",
+      "preferred": {
+        "measurable_completion": "Progress",
+        "indeterminate_activity": "Spinner"
+      }
+    },
+    {
+      "id": "spinner-vs-skeleton",
+      "rule": "Use Spinner to indicate activity. Use Skeleton when the expected content structure is known and being loaded.",
+      "preferred": {
+        "activity": "Spinner",
+        "content_placeholder": "Skeleton"
+      }
+    },
+    {
+      "id": "calendar-vs-date-picker",
+      "rule": "Use Calendar for date visualization or browsing. Use Date Picker when the user is selecting a date as input.",
+      "preferred": {
+        "date_visualization": "Calendar",
+        "date_input": "Date Picker"
+      }
+    },
+    {
+      "id": "image-vs-icon",
+      "rule": "Use Image for general visual media. Use Icon for compact symbolic UI meaning.",
+      "preferred": {
+        "general_media": "Image",
+        "symbolic_ui_graphic": "Icon"
+      }
+    },
+    {
+      "id": "checkbox-vs-radio-button",
+      "rule": "Use Checkbox for independent selections. Use Radio Button when exactly one option must be selected from a group.",
+      "preferred": {
+        "independent_selection": "Checkbox",
+        "mutually_exclusive_selection": "Radio Button"
+      }
+    }
+  ],
+
+  "component_relationships": [
+    {"source": "Header", "relationship": "may-contain", "target": "Navigation"},
+    {"source": "Header", "relationship": "may-contain", "target": "Search"},
+    {"source": "Header", "relationship": "may-contain", "target": "App Drawer"},
+    {"source": "App Drawer", "relationship": "contains", "target": "Navigation"},
+    {"source": "Navigation", "relationship": "contains", "target": "Link"},
+    {"source": "Navigation", "relationship": "may-contain", "target": "Menu"},
+    {"source": "Hero", "relationship": "may-contain", "target": "Button"},
+    {"source": "Hero", "relationship": "may-contain", "target": "Image"},
+    {"source": "Section", "relationship": "contains", "target": "Container"},
+    {"source": "Container", "relationship": "contains", "target": "Card"},
+    {"source": "Card", "relationship": "may-contain", "target": "Image"},
+    {"source": "Card", "relationship": "may-contain", "target": "Badge"},
+    {"source": "Card", "relationship": "may-contain", "target": "Button"},
+    {"source": "Form", "relationship": "contains", "target": "Label"},
+    {"source": "Form", "relationship": "contains", "target": "Input"},
+    {"source": "Form", "relationship": "may-contain", "target": "Select"},
+    {"source": "Form", "relationship": "may-contain", "target": "Checkbox"},
+    {"source": "Form", "relationship": "may-contain", "target": "Radio Button"},
+    {"source": "Form", "relationship": "may-contain", "target": "Textarea"},
+    {"source": "Form", "relationship": "may-contain", "target": "Button"},
+    {"source": "Date Picker", "relationship": "may-contain", "target": "Calendar"},
+    {"source": "Dropdown Menu", "relationship": "contains", "target": "Menu"},
+    {"source": "Popover", "relationship": "may-contain", "target": "Menu"},
+    {"source": "Dialog", "relationship": "may-contain", "target": "Form"},
+    {"source": "Modal", "relationship": "may-contain", "target": "Dialog"},
+    {"source": "Table", "relationship": "may-use", "target": "Pagination"},
+    {"source": "List", "relationship": "may-use", "target": "Pagination"},
+    {"source": "Toast", "relationship": "provides-feedback-for", "target": "Button"},
+    {"source": "Progress", "relationship": "indicates", "target": "process"},
+    {"source": "Spinner", "relationship": "indicates", "target": "loading"},
+    {"source": "Skeleton", "relationship": "represents", "target": "loading-content"},
+    {"source": "Carousel", "relationship": "contains", "target": "Card"},
+    {"source": "Carousel", "relationship": "contains", "target": "Image"}
+  ],
+
+  "responsive_principles": [
+    "All components must remain usable on narrow mobile viewports.",
+    "Avoid horizontal overflow unless horizontal scrolling is intentional.",
+    "Interactive controls must remain touch-friendly.",
+    "Navigation should transform rather than simply shrink when necessary.",
+    "Multi-column layouts should collapse or adapt appropriately.",
+    "Overlays must remain within the usable viewport.",
+    "Text must remain readable without requiring excessive zoom.",
+    "Component states must remain understandable on touch devices.",
+    "Hover-only interactions must have an appropriate touch or keyboard equivalent.",
+    "Critical content must not depend exclusively on hover, animation, or hidden interaction."
+  ],
+
+  "accessibility_principles": [
+    "Use semantic HTML concepts where applicable.",
+    "Every interactive control must have an accessible name.",
+    "Keyboard interaction must be supported for interactive components.",
+    "Focus states must remain visible.",
+    "Do not communicate meaning using color alone.",
+    "Form controls require meaningful labels.",
+    "Dialogs, modals, drawers, and popovers require appropriate focus management.",
+    "Dynamic feedback must be communicated appropriately.",
+    "Media should provide appropriate alternatives such as captions or text alternatives.",
+    "Component identification should consider semantic purpose rather than visual styling alone."
+  ],
+
+  "verification": {
+    "identity_checks": [
+      "Canonical component name is selected.",
+      "Component purpose matches the observed behavior.",
+      "Component is not incorrectly identified from appearance alone.",
+      "Aliases do not override the canonical component name."
+    ],
+    "structure_checks": [
+      "Component relationships are semantically valid.",
+      "Nested components have a logical parent-child relationship.",
+      "Component composition does not create unnecessary duplication."
+    ],
+    "responsive_checks": [
+      "Component works at mobile width.",
+      "Component works at larger viewport widths.",
+      "No unintended horizontal overflow exists.",
+      "Touch interactions remain usable."
+    ],
+    "accessibility_checks": [
+      "Interactive controls are keyboard accessible.",
+      "Accessible names are present where required.",
+      "Focus behavior is correct.",
+      "State changes are communicated."
+    ],
+    "behavior_checks": [
+      "Interactive states work correctly.",
+      "Loading, empty, error, and success states are represented where applicable.",
+      "Component performs its intended task."
+    ]
+  },
+
+  "normalization": {
+    "canonical_name_rule": "Always use the canonical_name value when assigning an identified component.",
+    "alias_rule": "Aliases may be used to recognize user or source terminology but must resolve to the canonical component.",
+    "case_rule": "Canonical component names use title case.",
+    "implementation_rule": "Framework-specific implementations must not replace canonical semantic component names.",
+    "mobile_first_rule": "Responsive identification must prioritize the component's semantic purpose even when its visual presentation changes across breakpoints."
+  }
+}

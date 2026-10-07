@@ -22,7 +22,7 @@ const MAX_VISUAL_REPAIRS = 3; // preview verification → repair → rebuild →
 type State = {
   phase?: Phase; changed?: string[]; created?: string[]; lastCheck?: boolean | null; round?: number; results?: string; failedBuilds?: number;
   failedIds?: string[]; failedPatches?: string[]; pendingCreates?: number; structureFixes?: number; baseRevision?: number; mutated?: boolean; plan?: AgentPlan; planVersion?: number; decisionSeq?: number;
-  feedback?: string; snippets?: string; fixAttempts?: number; validation?: string; test?: string; n?: number;
+  feedback?: string; snippets?: string; knowledge?: string; fixAttempts?: number; validation?: string; test?: string; n?: number;
   /** Agent Core: analyzed sub-tasks, batches (with their agent_steps ids), relevant files and summary status. */
   ag?: { tasks: SubTask[]; batches: Batch[]; batchSteps: Record<string, string>; relevant?: string[] };
   finalSummaryStatus?: string;
@@ -184,7 +184,8 @@ async function planStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   const [proj] = await d1<{ name: string }>("SELECT name FROM projects WHERE id = ?", [pid]);
   const { createPlan } = await import("../../functions/ai/orchestrator.server");
   const planT0 = Date.now();
-  const out = await withCancel(c, createPlan({ model: p.model ?? "speed", depth: p.depth ?? "balanced", projectName: proj?.name ?? "project", prompt: p.prompt ?? "", files, snippets: st.snippets, previous: st.plan, feedback: st.feedback }));
+  await ensureKnowledge(c, st, p.prompt ?? "", files);
+  const out = await withCancel(c, createPlan({ model: p.model ?? "speed", depth: p.depth ?? "balanced", projectName: proj?.name ?? "project", prompt: p.prompt ?? "", files, snippets: [st.knowledge, st.snippets].filter(Boolean).join("\n\n"), previous: st.plan, feedback: st.feedback }));
   if (!out) return { done: false, delayMs: 10 };
   if (out.usedModel) await c.emit("model", { stage: "plan", model: out.usedModel, fallbacks: (out.fallbacks ?? []) as unknown as Json });
   // Real execution call (planning), recorded honestly; progress text never creates usage rows.
@@ -250,7 +251,7 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   const ar = await AgentRun.for(c);
   const batchId = batchOf(st);
   const roundT0 = Date.now();
-  const step = await withCancel(c, runAgentRound({ model: p.model ?? "speed", depth: p.depth ?? "balanced", plan: false, projectName: proj?.name ?? "project", round, files: store.list().map((f) => f.path).sort(), results: [st.results ?? "", (await import("../../agent/context")).designTokens(store.list())].filter(Boolean).join("\n"), history: hist, tools: catalogText("building"), ...(st.plan ? { approvedPlan: planText(st.plan) } : {}) }));
+  const step = await withCancel(c, runAgentRound({ model: p.model ?? "speed", depth: p.depth ?? "balanced", plan: false, projectName: proj?.name ?? "project", round, files: store.list().map((f) => f.path).sort(), results: [(await ensureKnowledge(c, st, p.prompt ?? "", store.list().map((f) => f.path))), st.results ?? "", (await import("../../agent/context")).designTokens(store.list())].filter(Boolean).join("\n"), history: hist, tools: catalogText("building"), ...(st.plan ? { approvedPlan: planText(st.plan) } : {}) }));
   if (!step) return { done: false, delayMs: 10 };
   await c.emit("model", { stage: "build", round, model: step.usedModel, fallbacks: step.fallbacks as unknown as Json });
   const rid = await ar.step({ type: "edit", name: `Build round ${round + 1}`, batchId, description: step.message.slice(0, 500), metadata: { actions: (step.actions as Step[]).length } });
@@ -652,3 +653,15 @@ export const agentHandler: TaskHandler = {
     await ar.finish("cancelled", { failureReason: "Stopped by user" });
   },
 };
+
+/** Knowledge-base guidance for this run (cloudflare/agent/agent.ts over the Agent D1 knowledge bases): resolved once,
+ *  kept in task state, and fed to planning and every build round. Fail-soft: missing knowledge never blocks a run. */
+async function ensureKnowledge(c: TaskContext, st: State, prompt: string, files: string[]): Promise<string> {
+  if (st.knowledge === undefined) {
+    const { knowledgeForRequest } = await import("../../agent/agent");
+    const k = await knowledgeForRequest(prompt, files.join(" "));
+    st.knowledge = k.text;
+    if (k.components.length) await c.emit("step", { label: `Using knowledge: ${k.components.slice(0, 6).join(", ")}` });
+  }
+  return st.knowledge;
+}

@@ -1,0 +1,3986 @@
+{
+  "dataset": {
+    "name": "Web Architecture & Infrastructure Knowledge Base",
+    "id": "web-architecture-infrastructure",
+    "version": "1.1.0",
+    "status": "production",
+    "language": "en",
+    "description": "Structured semantic knowledge for understanding, designing, implementing, modifying, debugging, and verifying professional web applications and websites.",
+    "scope": [
+      "project architecture",
+      "repository structure",
+      "application architecture",
+      "routing",
+      "pages",
+      "layouts",
+      "navigation",
+      "UI components",
+      "HTML semantics",
+      "CSS and responsive design",
+      "client and server boundaries",
+      "state management",
+      "business logic",
+      "APIs",
+      "services",
+      "data architecture",
+      "databases",
+      "authentication",
+      "authorization",
+      "forms",
+      "validation",
+      "loading and error states",
+      "assets",
+      "accessibility",
+      "SEO",
+      "performance",
+      "security",
+      "build systems",
+      "environment configuration",
+      "deployment",
+      "observability",
+      "testing",
+      "verification",
+      "diagnostics",
+      "architecture decisions",
+      "patterns",
+      "anti-patterns"
+    ],
+    "principles": [
+      "Prefer semantic meaning over implementation-specific naming.",
+      "Separate conceptual entities from their implementations.",
+      "Treat aliases as synonyms, not implementations.",
+      "Treat rules as contextual unless a rule is explicitly mandatory.",
+      "Prefer the simplest architecture that satisfies the requirements.",
+      "Preserve existing architecture unless a change is required.",
+      "Verify changes at the highest relevant level.",
+      "Never assume a visual problem has only a visual cause.",
+      "Prefer relationships and dependencies over isolated knowledge.",
+      "Use diagnostics to move from symptoms to likely causes before changing code."
+    ],
+    "categories": [
+      "project",
+      "application",
+      "repository",
+      "routing",
+      "layout",
+      "page",
+      "navigation",
+      "ui",
+      "content",
+      "forms",
+      "feedback",
+      "state",
+      "logic",
+      "api",
+      "service",
+      "data",
+      "database",
+      "auth",
+      "asset",
+      "accessibility",
+      "seo",
+      "performance",
+      "security",
+      "build",
+      "environment",
+      "deployment",
+      "observability",
+      "testing",
+      "diagnostics"
+    ]
+  },
+
+  "entities": [
+    {
+      "id": "project",
+      "canonical_name": "Project",
+      "category": "project",
+      "definition": "The complete software workspace containing source code, configuration, dependencies, assets, tests, and build/deployment resources.",
+      "purpose": "Provides the complete boundary of an application or website.",
+      "why_it_exists": "A project groups all resources required to develop, build, verify, and deploy the product.",
+      "placement": {
+        "where": "Repository root",
+        "why_here": "Project-level configuration and source directories need a common root.",
+        "typical_parent": [],
+        "typical_children": [
+          "application",
+          "repository",
+          "build-configuration",
+          "environment-configuration",
+          "assets",
+          "tests"
+        ],
+        "preferred_locations": [
+          "repository root"
+        ],
+        "avoid_locations": [
+          "nested inside an unrelated application directory"
+        ]
+      },
+      "aliases": [
+        "web project",
+        "app project",
+        "codebase"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "project",
+        "codebase",
+        "workspace",
+        "repo"
+      ],
+      "properties": [
+        "name",
+        "framework",
+        "runtime",
+        "dependencies",
+        "source",
+        "configuration",
+        "build",
+        "deployment"
+      ],
+      "content_model": {
+        "required": [
+          "source code"
+        ],
+        "optional": [
+          "tests",
+          "documentation",
+          "assets",
+          "deployment configuration"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [],
+      "variations": [
+        "static website",
+        "server-rendered application",
+        "single-page application",
+        "full-stack application"
+      ],
+      "relationships": [
+        {
+          "type": "contains",
+          "target": "application"
+        },
+        {
+          "type": "contains",
+          "target": "repository"
+        },
+        {
+          "type": "contains",
+          "target": "build-configuration"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Project-level configuration should remain centralized.",
+          "strength": "recommended",
+          "reason": "Centralized configuration reduces duplication.",
+          "exception": "Framework-specific configuration may require local configuration."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [],
+      "performance": [],
+      "security": [
+        "Secrets must not be committed to source control."
+      ],
+      "seo": [],
+      "common_problems": [
+        "missing build configuration",
+        "incorrect dependency configuration",
+        "broken project structure",
+        "environment mismatch"
+      ],
+      "anti_patterns": [
+        "hardcoding secrets in source files",
+        "mixing unrelated projects in one root"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "static",
+          "check": "Project structure is internally consistent."
+        },
+        {
+          "type": "build",
+          "check": "Project builds successfully."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Clear separation between source, configuration, assets, and tests."
+        ],
+        "incorrect": [
+          "Secrets committed directly into application source."
+        ]
+      }
+    },
+
+    {
+      "id": "application",
+      "canonical_name": "Application",
+      "category": "application",
+      "definition": "The executable web product composed of routes, pages, layouts, components, logic, data access, and infrastructure integrations.",
+      "purpose": "Provides the functional application experience.",
+      "why_it_exists": "It represents the runtime behavior users interact with.",
+      "placement": {
+        "where": "Inside the project source architecture",
+        "why_here": "Application code belongs inside the project boundary.",
+        "typical_parent": [
+          "project"
+        ],
+        "typical_children": [
+          "routes",
+          "layouts",
+          "pages",
+          "components",
+          "services",
+          "state"
+        ],
+        "preferred_locations": [
+          "src",
+          "app",
+          "pages"
+        ],
+        "avoid_locations": [
+          "build output directories"
+        ]
+      },
+      "aliases": [
+        "web app",
+        "application"
+      ],
+      "implementations": [
+        "single-page application",
+        "multi-page application",
+        "server-rendered application",
+        "static application"
+      ],
+      "semantic_terms": [
+        "app",
+        "application",
+        "website",
+        "web app"
+      ],
+      "properties": [
+        "runtime",
+        "routes",
+        "pages",
+        "state",
+        "services"
+      ],
+      "content_model": {
+        "required": [
+          "application entry point"
+        ],
+        "optional": [
+          "routing",
+          "state",
+          "API integration"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "initializing",
+        "loading",
+        "ready",
+        "error"
+      ],
+      "variations": [],
+      "relationships": [
+        {
+          "type": "contains",
+          "target": "route"
+        },
+        {
+          "type": "contains",
+          "target": "page"
+        },
+        {
+          "type": "contains",
+          "target": "layout"
+        },
+        {
+          "type": "uses",
+          "target": "service"
+        }
+      ],
+      "dependencies": [
+        "runtime",
+        "project-configuration"
+      ],
+      "rules": [
+        {
+          "rule": "Application responsibilities should be separated by architectural concern.",
+          "strength": "recommended",
+          "reason": "Separation improves maintainability.",
+          "exception": "Very small applications may intentionally use a simpler structure."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [],
+      "performance": [],
+      "security": [],
+      "seo": [],
+      "common_problems": [
+        "tightly coupled architecture",
+        "duplicated logic",
+        "unclear ownership of state"
+      ],
+      "anti_patterns": [
+        "putting all application logic in one component",
+        "mixing UI rendering with unrelated infrastructure logic"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "build",
+          "check": "Application builds."
+        },
+        {
+          "type": "runtime",
+          "check": "Application starts successfully."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Pages compose components while services handle external operations."
+        ],
+        "incorrect": [
+          "A single UI component directly contains all database, API, and presentation logic."
+        ]
+      }
+    },
+
+    {
+      "id": "route",
+      "canonical_name": "Route",
+      "category": "routing",
+      "definition": "A URL pattern mapped to a specific application resource or page.",
+      "purpose": "Determines which application experience is rendered for a URL.",
+      "why_it_exists": "Users and systems need stable URL-based access to application resources.",
+      "placement": {
+        "where": "Routing layer",
+        "why_here": "URL resolution belongs to routing.",
+        "typical_parent": [
+          "application"
+        ],
+        "typical_children": [
+          "page",
+          "layout",
+          "route-handler"
+        ],
+        "preferred_locations": [
+          "app routing directory",
+          "routes directory"
+        ],
+        "avoid_locations": [
+          "unrelated UI component directories"
+        ]
+      },
+      "aliases": [
+        "URL route",
+        "path"
+      ],
+      "implementations": [
+        "file-based routing",
+        "configuration-based routing",
+        "client-side routing",
+        "server-side routing"
+      ],
+      "semantic_terms": [
+        "route",
+        "URL",
+        "path",
+        "page URL"
+      ],
+      "properties": [
+        "path",
+        "parameters",
+        "query",
+        "method",
+        "destination"
+      ],
+      "content_model": {
+        "required": [
+          "path",
+          "destination"
+        ],
+        "optional": [
+          "parameters",
+          "guards",
+          "metadata"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "matched",
+        "not-found",
+        "loading",
+        "error"
+      ],
+      "variations": [
+        "static route",
+        "dynamic route",
+        "nested route",
+        "catch-all route"
+      ],
+      "relationships": [
+        {
+          "type": "renders",
+          "target": "page"
+        },
+        {
+          "type": "may-use",
+          "target": "layout"
+        }
+      ],
+      "dependencies": [
+        "routing-system"
+      ],
+      "rules": [
+        {
+          "rule": "Routes should have stable and meaningful URL structures.",
+          "strength": "recommended",
+          "reason": "Stable URLs improve usability, SEO, and maintainability.",
+          "exception": "Internal routes may use implementation-specific paths."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [],
+      "performance": [],
+      "security": [
+        "Protected routes must enforce authorization server-side where required."
+      ],
+      "seo": [
+        "Public routes should use meaningful canonical URLs."
+      ],
+      "common_problems": [
+        "404 errors",
+        "incorrect route matching",
+        "broken dynamic parameters"
+      ],
+      "anti_patterns": [
+        "duplicated route definitions",
+        "security based only on client-side route guards"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "functional",
+          "check": "Expected URL resolves to the expected resource."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "/products/123"
+        ],
+        "incorrect": [
+          "A protected resource accessible because only the client hides the route."
+        ]
+      }
+    },
+
+    {
+      "id": "layout",
+      "canonical_name": "Layout",
+      "category": "layout",
+      "definition": "A structural wrapper shared by multiple pages or routes.",
+      "purpose": "Provides persistent structure and shared UI.",
+      "why_it_exists": "Shared application structure should not be duplicated across pages.",
+      "placement": {
+        "where": "Around pages or route groups",
+        "why_here": "Layouts define structural context.",
+        "typical_parent": [
+          "application",
+          "route"
+        ],
+        "typical_children": [
+          "header",
+          "navigation",
+          "page",
+          "footer"
+        ],
+        "preferred_locations": [
+          "layout directories",
+          "route groups"
+        ],
+        "avoid_locations": [
+          "deeply nested reusable component directories"
+        ]
+      },
+      "aliases": [
+        "page shell",
+        "application shell"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "layout",
+        "shell",
+        "wrapper",
+        "page shell"
+      ],
+      "properties": [
+        "structure",
+        "shared navigation",
+        "content region"
+      ],
+      "content_model": {
+        "required": [
+          "content region"
+        ],
+        "optional": [
+          "header",
+          "app drawer",
+          "footer"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [],
+      "variations": [
+        "public layout",
+        "authenticated layout",
+        "dashboard layout"
+      ],
+      "relationships": [
+        {
+          "type": "contains",
+          "target": "page"
+        },
+        {
+          "type": "contains",
+          "target": "navigation"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Shared structure should be implemented at the highest common level that requires it.",
+          "strength": "recommended",
+          "reason": "Prevents duplication.",
+          "exception": "Pages with intentionally unique structures."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [
+        "Layout must adapt to available viewport width."
+      ],
+      "accessibility": [
+        "Maintain logical landmark structure."
+      ],
+      "performance": [],
+      "security": [],
+      "seo": [],
+      "common_problems": [
+        "duplicated navigation",
+        "incorrect nesting",
+        "mobile overflow"
+      ],
+      "anti_patterns": [
+        "one giant layout containing unrelated page-specific logic"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "visual",
+          "check": "Shared structure is consistent across applicable routes."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Dashboard pages sharing a dashboard layout."
+        ],
+        "incorrect": [
+          "Copying the same App Drawer markup into every dashboard page."
+        ]
+      }
+    },
+
+    {
+      "id": "page",
+      "canonical_name": "Page",
+      "category": "page",
+      "definition": "A route-level user-facing screen representing a complete application experience.",
+      "purpose": "Composes sections and components into a complete screen.",
+      "why_it_exists": "Pages provide route-specific content and behavior.",
+      "placement": {
+        "where": "Route/page layer",
+        "why_here": "Pages correspond to user-accessible application destinations.",
+        "typical_parent": [
+          "route",
+          "layout"
+        ],
+        "typical_children": [
+          "section",
+          "component",
+          "form",
+          "feedback"
+        ],
+        "preferred_locations": [
+          "pages",
+          "app routes"
+        ],
+        "avoid_locations": [
+          "generic component directories"
+        ]
+      },
+      "aliases": [
+        "screen",
+        "view"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "page",
+        "screen",
+        "view"
+      ],
+      "properties": [
+        "title",
+        "content",
+        "sections",
+        "data requirements"
+      ],
+      "content_model": {
+        "required": [
+          "primary content"
+        ],
+        "optional": [
+          "secondary sections",
+          "actions",
+          "metadata"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "loading",
+        "ready",
+        "empty",
+        "error",
+        "success"
+      ],
+      "variations": [
+        "landing page",
+        "dashboard page",
+        "detail page",
+        "listing page",
+        "settings page"
+      ],
+      "relationships": [
+        {
+          "type": "belongs-to",
+          "target": "route"
+        },
+        {
+          "type": "uses",
+          "target": "component"
+        },
+        {
+          "type": "may-use",
+          "target": "service"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "A page should represent one coherent user goal or destination.",
+          "strength": "recommended",
+          "reason": "Improves information architecture.",
+          "exception": "Complex dashboards may intentionally contain multiple workflows."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [
+        "Content hierarchy must remain usable on narrow screens."
+      ],
+      "accessibility": [
+        "Use a meaningful page heading.",
+        "Maintain logical heading hierarchy."
+      ],
+      "performance": [],
+      "security": [],
+      "seo": [
+        "Public pages should expose appropriate title and metadata."
+      ],
+      "common_problems": [
+        "overloaded pages",
+        "missing loading state",
+        "missing error state"
+      ],
+      "anti_patterns": [
+        "page containing all reusable component implementation inline"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "functional",
+          "check": "Page fulfills its intended user task."
+        },
+        {
+          "type": "visual",
+          "check": "Page renders correctly across supported viewport sizes."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "A product detail page composed from reusable sections."
+        ],
+        "incorrect": [
+          "A page with duplicated implementations of the same card component."
+        ]
+      }
+    },
+
+    {
+      "id": "navigation",
+      "canonical_name": "Navigation",
+      "category": "navigation",
+      "definition": "A UI mechanism that allows users to move between application destinations.",
+      "purpose": "Provides discoverable access to routes and application areas.",
+      "why_it_exists": "Users need predictable movement through the application.",
+      "placement": {
+        "where": "Application shell, header, App Drawer, menus, or contextual regions",
+        "why_here": "Navigation belongs near the content or structure it controls.",
+        "typical_parent": [
+          "layout",
+          "header",
+          "app-drawer"
+        ],
+        "typical_children": [
+          "navigation-item",
+          "menu",
+          "link",
+          "button"
+        ],
+        "preferred_locations": [
+          "header",
+          "app drawer",
+          "application shell"
+        ],
+        "avoid_locations": [
+          "unrelated content regions"
+        ]
+      },
+      "aliases": [
+        "nav",
+        "site navigation",
+        "menu navigation"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "navigation",
+        "nav",
+        "menu",
+        "links"
+      ],
+      "properties": [
+        "items",
+        "active item",
+        "destination"
+      ],
+      "content_model": {
+        "required": [
+          "navigation items"
+        ],
+        "optional": [
+          "groups",
+          "icons",
+          "badges"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "default",
+        "active",
+        "hover",
+        "focus",
+        "disabled",
+        "expanded",
+        "collapsed"
+      ],
+      "variations": [
+        "header navigation",
+        "app drawer navigation",
+        "mobile navigation",
+        "breadcrumb navigation",
+        "tab navigation"
+      ],
+      "relationships": [
+        {
+          "type": "targets",
+          "target": "route"
+        },
+        {
+          "type": "contained-by",
+          "target": "layout"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Navigation labels should clearly describe their destinations.",
+          "strength": "recommended",
+          "reason": "Improves usability.",
+          "exception": "Icon-only navigation may be acceptable when accessible labeling is provided."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [
+        "Navigation may collapse or transform on narrow screens.",
+        "Touch targets must remain usable on mobile."
+      ],
+      "accessibility": [
+        "Use semantic navigation landmarks where appropriate.",
+        "Provide keyboard access.",
+        "Provide accessible names for icon-only controls."
+      ],
+      "performance": [],
+      "security": [],
+      "seo": [],
+      "common_problems": [
+        "unclear active state",
+        "mobile overflow",
+        "inaccessible dropdowns"
+      ],
+      "anti_patterns": [
+        "navigation represented only by unexplained icons"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "accessibility",
+          "check": "Navigation is keyboard accessible."
+        },
+        {
+          "type": "functional",
+          "check": "Navigation destinations resolve correctly."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Responsive navigation that collapses into a mobile menu."
+        ],
+        "incorrect": [
+          "Desktop navigation extending beyond the mobile viewport."
+        ]
+      }
+    },
+
+    {
+      "id": "app-drawer",
+      "canonical_name": "App Drawer",
+      "category": "navigation",
+      "definition": "A persistent or collapsible navigation panel used to expose major application destinations.",
+      "purpose": "Provides navigation for applications with multiple sections or workspaces.",
+      "why_it_exists": "Complex applications need persistent access to primary destinations.",
+      "placement": {
+        "where": "Application shell, commonly beside the main content",
+        "why_here": "It defines the primary navigation context.",
+        "typical_parent": [
+          "layout",
+          "application-shell"
+        ],
+        "typical_children": [
+          "navigation-item",
+          "navigation-group",
+          "collapse-control"
+        ],
+        "preferred_locations": [
+          "left side of desktop application shell",
+          "mobile off-canvas navigation"
+        ],
+        "avoid_locations": [
+          "inside individual content cards",
+          "deep inside page-specific components"
+        ]
+      },
+      "aliases": [
+        "sidebar",
+        "side navigation",
+        "navigation drawer",
+        "left menu",
+        "side menu"
+      ],
+      "implementations": [
+        "persistent app drawer",
+        "collapsible app drawer",
+        "off-canvas drawer"
+      ],
+      "semantic_terms": [
+        "sidebar",
+        "drawer",
+        "left menu",
+        "side menu",
+        "app navigation"
+      ],
+      "properties": [
+        "items",
+        "width",
+        "collapsed state",
+        "active destination"
+      ],
+      "content_model": {
+        "required": [
+          "navigation items"
+        ],
+        "optional": [
+          "groups",
+          "icons",
+          "badges",
+          "collapse control"
+        ],
+        "conditional": [
+          "mobile close control when rendered as an overlay"
+        ],
+        "forbidden": []
+      },
+      "states": [
+        "expanded",
+        "collapsed",
+        "open",
+        "closed",
+        "active"
+      ],
+      "variations": [
+        "fixed app drawer",
+        "collapsible app drawer",
+        "overlay drawer"
+      ],
+      "relationships": [
+        {
+          "type": "contains",
+          "target": "navigation"
+        },
+        {
+          "type": "controls",
+          "target": "route"
+        }
+      ],
+      "dependencies": [
+        "navigation"
+      ],
+      "rules": [
+        {
+          "rule": "The drawer should not unnecessarily consume content width on small screens.",
+          "strength": "recommended",
+          "reason": "Preserves usable content space.",
+          "exception": "Applications specifically designed around persistent navigation."
+        }
+      ],
+      "constraints": [
+        {
+          "rule": "Drawer must remain accessible when collapsed.",
+          "strength": "required",
+          "reason": "Users need access to navigation.",
+          "exception": ""
+        }
+      ],
+      "responsive_behavior": [
+        "Desktop may use persistent navigation.",
+        "Tablet may use collapsible navigation.",
+        "Mobile commonly uses an overlay/off-canvas drawer."
+      ],
+      "accessibility": [
+        "Keyboard focus must be managed when the drawer becomes modal.",
+        "Collapse/open controls require accessible labels."
+      ],
+      "performance": [],
+      "security": [
+        "Navigation visibility must not be treated as authorization."
+      ],
+      "seo": [],
+      "common_problems": [
+        "mobile overflow",
+        "drawer covering content incorrectly",
+        "lost keyboard focus",
+        "unclear active destination"
+      ],
+      "anti_patterns": [
+        "using hidden navigation as a security mechanism",
+        "fixed width that exceeds narrow viewports"
+      ],
+      "alternatives": [
+        "header navigation",
+        "bottom navigation",
+        "contextual navigation"
+      ],
+      "tradeoffs": [
+        "Persistent navigation improves discoverability but consumes horizontal space.",
+        "Overlay navigation preserves content width but requires an additional interaction."
+      ],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "responsive",
+          "check": "Drawer does not create horizontal page overflow."
+        },
+        {
+          "type": "accessibility",
+          "check": "Drawer is keyboard accessible."
+        },
+        {
+          "type": "functional",
+          "check": "Navigation items route correctly."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Desktop App Drawer becomes an off-canvas drawer on mobile."
+        ],
+        "incorrect": [
+          "A 320px fixed App Drawer remains permanently visible on a 320px viewport."
+        ]
+      }
+    },
+
+    {
+      "id": "component",
+      "canonical_name": "UI Component",
+      "category": "ui",
+      "definition": "A reusable user-interface unit responsible for a bounded visual or interactive concern.",
+      "purpose": "Provides reusable UI behavior and presentation.",
+      "why_it_exists": "Reusable components reduce duplication and improve consistency.",
+      "placement": {
+        "where": "Component/UI layer",
+        "why_here": "Reusable presentation belongs in a reusable UI layer.",
+        "typical_parent": [
+          "page",
+          "section",
+          "layout"
+        ],
+        "typical_children": [],
+        "preferred_locations": [
+          "components",
+          "ui"
+        ],
+        "avoid_locations": [
+          "build output",
+          "unrelated infrastructure directories"
+        ]
+      },
+      "aliases": [
+        "component",
+        "UI component",
+        "widget"
+      ],
+      "implementations": [
+        "React component",
+        "Vue component",
+        "Svelte component",
+        "Web Component"
+      ],
+      "semantic_terms": [
+        "component",
+        "UI",
+        "widget"
+      ],
+      "properties": [
+        "props",
+        "state",
+        "events",
+        "children"
+      ],
+      "content_model": {
+        "required": [],
+        "optional": [
+          "children",
+          "labels",
+          "content"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "active",
+        "disabled",
+        "loading",
+        "error"
+      ],
+      "variations": [
+        "presentational component",
+        "interactive component",
+        "composite component"
+      ],
+      "relationships": [
+        {
+          "type": "used-by",
+          "target": "page"
+        },
+        {
+          "type": "composes",
+          "target": "component"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Components should have a clear responsibility.",
+          "strength": "recommended",
+          "reason": "Improves reuse and maintainability.",
+          "exception": "Composite components may intentionally coordinate multiple concerns."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [
+        "Components should adapt to their available container width."
+      ],
+      "accessibility": [
+        "Interactive components must expose appropriate semantics.",
+        "Keyboard interaction must be supported where applicable."
+      ],
+      "performance": [
+        "Avoid unnecessary rerenders and expensive work."
+      ],
+      "security": [],
+      "seo": [],
+      "common_problems": [
+        "overly large components",
+        "duplicated components",
+        "mixed responsibilities"
+      ],
+      "anti_patterns": [
+        "god component",
+        "duplicated UI implementations"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "functional",
+          "check": "Component behavior matches its contract."
+        },
+        {
+          "type": "visual",
+          "check": "Component renders correctly in supported states."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Reusable Button component used across multiple pages."
+        ],
+        "incorrect": [
+          "One component containing routing, database access, authentication, and unrelated UI."
+        ]
+      }
+    },
+
+    {
+      "id": "button",
+      "canonical_name": "Button",
+      "category": "ui",
+      "definition": "An interactive control used to trigger an action.",
+      "purpose": "Allows users to perform commands or actions.",
+      "why_it_exists": "Actions require explicit interactive controls.",
+      "placement": {
+        "where": "Action-oriented UI regions",
+        "why_here": "Buttons belong near the action they perform.",
+        "typical_parent": [
+          "form",
+          "toolbar",
+          "dialog",
+          "card",
+          "page"
+        ],
+        "typical_children": [],
+        "preferred_locations": [
+          "action areas",
+          "forms",
+          "toolbars"
+        ],
+        "avoid_locations": [
+          "when navigation is the actual intent"
+        ]
+      },
+      "aliases": [
+        "action button",
+        "CTA button"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "button",
+        "action",
+        "CTA",
+        "click"
+      ],
+      "properties": [
+        "label",
+        "type",
+        "disabled",
+        "loading"
+      ],
+      "content_model": {
+        "required": [
+          "accessible name"
+        ],
+        "optional": [
+          "icon"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "active",
+        "disabled",
+        "loading"
+      ],
+      "variations": [
+        "primary",
+        "secondary",
+        "destructive",
+        "icon-only"
+      ],
+      "relationships": [
+        {
+          "type": "may-trigger",
+          "target": "action"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Use a button when the interaction performs an action.",
+          "strength": "required",
+          "reason": "Button semantics communicate action behavior.",
+          "exception": "Framework abstractions may preserve equivalent semantics."
+        },
+        {
+          "rule": "Use a link when the interaction navigates to another destination.",
+          "strength": "recommended",
+          "reason": "Links represent navigation.",
+          "exception": "Framework-specific navigation abstractions may render as links."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [
+        "Touch targets must remain usable on small screens."
+      ],
+      "accessibility": [
+        "Provide an accessible name.",
+        "Support keyboard interaction."
+      ],
+      "performance": [],
+      "security": [],
+      "seo": [],
+      "common_problems": [
+        "button used for navigation",
+        "missing accessible name",
+        "unclear disabled state"
+      ],
+      "anti_patterns": [
+        "clickable div used instead of semantic button"
+      ],
+      "alternatives": [
+        "link"
+      ],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "accessibility",
+          "check": "Button can be reached and activated with keyboard."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Submit button triggering form submission."
+        ],
+        "incorrect": [
+          "A div with onClick used as a button without keyboard semantics."
+        ]
+      }
+    },
+
+    {
+      "id": "card",
+      "canonical_name": "Card",
+      "category": "content",
+      "definition": "A bounded content container representing a related piece of information or action.",
+      "purpose": "Groups related content into a visually understandable unit.",
+      "why_it_exists": "Cards help organize repeated or related content.",
+      "placement": {
+        "where": "Content sections, grids, lists, dashboards",
+        "why_here": "Cards group related information.",
+        "typical_parent": [
+          "section",
+          "grid",
+          "list"
+        ],
+        "typical_children": [
+          "heading",
+          "text",
+          "image",
+          "button",
+          "link"
+        ],
+        "preferred_locations": [
+          "repeated content collections",
+          "dashboard summaries"
+        ],
+        "avoid_locations": [
+          "content that does not benefit from visual grouping"
+        ]
+      },
+      "aliases": [
+        "content card",
+        "tile"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "card",
+        "tile",
+        "content block"
+      ],
+      "properties": [
+        "title",
+        "content",
+        "actions",
+        "media"
+      ],
+      "content_model": {
+        "required": [],
+        "optional": [
+          "title",
+          "description",
+          "media",
+          "actions"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "loading",
+        "disabled"
+      ],
+      "variations": [
+        "content card",
+        "product card",
+        "stat card",
+        "interactive card"
+      ],
+      "relationships": [
+        {
+          "type": "contains",
+          "target": "button"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Card content should represent a coherent unit.",
+          "strength": "recommended",
+          "reason": "Prevents arbitrary visual grouping.",
+          "exception": ""
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [
+        "Cards may change grid columns or width based on available space."
+      ],
+      "accessibility": [
+        "Interactive cards must expose an accessible interaction model."
+      ],
+      "performance": [],
+      "security": [],
+      "seo": [],
+      "common_problems": [
+        "nested interactive controls",
+        "overcrowding",
+        "inconsistent heights"
+      ],
+      "anti_patterns": [
+        "entire card made clickable while containing incompatible nested controls"
+      ],
+      "alternatives": [
+        "list item",
+        "section"
+      ],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "visual",
+          "check": "Card remains readable across supported viewport widths."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Product card containing image, title, price, and action."
+        ],
+        "incorrect": [
+          "Card containing unrelated application sections."
+        ]
+      }
+    },
+
+    {
+      "id": "form",
+      "canonical_name": "Form",
+      "category": "forms",
+      "definition": "A structured collection of user inputs submitted to perform an operation.",
+      "purpose": "Collects and validates user-provided information.",
+      "why_it_exists": "Many application operations require structured user input.",
+      "placement": {
+        "where": "Pages, dialogs, authentication screens, settings, workflows",
+        "why_here": "Forms belong at the point where user input is required.",
+        "typical_parent": [
+          "page",
+          "dialog",
+          "section"
+        ],
+        "typical_children": [
+          "input",
+          "select",
+          "checkbox",
+          "radio",
+          "button",
+          "validation-message"
+        ],
+        "preferred_locations": [
+          "task-specific content areas"
+        ],
+        "avoid_locations": [
+          "unrelated decorative containers"
+        ]
+      },
+      "aliases": [
+        "input form",
+        "form UI"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "form",
+        "submit",
+        "fields",
+        "input"
+      ],
+      "properties": [
+        "fields",
+        "validation",
+        "submission",
+        "initial values"
+      ],
+      "content_model": {
+        "required": [
+          "relevant input controls"
+        ],
+        "optional": [
+          "description",
+          "validation messages",
+          "submit action"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "idle",
+        "editing",
+        "validating",
+        "submitting",
+        "success",
+        "error"
+      ],
+      "variations": [
+        "single-step form",
+        "multi-step form",
+        "search form",
+        "authentication form"
+      ],
+      "relationships": [
+        {
+          "type": "contains",
+          "target": "input"
+        },
+        {
+          "type": "submits-to",
+          "target": "api-endpoint"
+        }
+      ],
+      "dependencies": [
+        "validation"
+      ],
+      "rules": [
+        {
+          "rule": "Client-side validation should improve UX but must not replace server-side validation for trusted operations.",
+          "strength": "required",
+          "reason": "Client input cannot be trusted.",
+          "exception": "Purely local interactions with no trusted server operation."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [
+        "Fields should fit available width.",
+        "Form controls must remain usable on touch devices."
+      ],
+      "accessibility": [
+        "Inputs require accessible labels.",
+        "Validation errors must be communicated accessibly."
+      ],
+      "performance": [],
+      "security": [
+        "Validate and sanitize trusted server input.",
+        "Do not expose sensitive values unnecessarily."
+      ],
+      "seo": [],
+      "common_problems": [
+        "missing validation",
+        "duplicate submission",
+        "unclear errors"
+      ],
+      "anti_patterns": [
+        "trusting client validation as security"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "functional",
+          "check": "Valid input submits successfully."
+        },
+        {
+          "type": "functional",
+          "check": "Invalid input produces useful validation feedback."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Form validates input before sending it to an API."
+        ],
+        "incorrect": [
+          "Server accepts client-provided values without validation."
+        ]
+      }
+    },
+
+    {
+      "id": "input",
+      "canonical_name": "Input",
+      "category": "forms",
+      "definition": "A form control used to collect a value from the user.",
+      "purpose": "Collects structured user input.",
+      "why_it_exists": "User-provided values must be captured through interactive controls.",
+      "placement": {
+        "where": "Forms and data-entry interfaces",
+        "why_here": "Inputs belong near the information they collect.",
+        "typical_parent": [
+          "form"
+        ],
+        "typical_children": [
+          "label",
+          "help-text",
+          "validation-message"
+        ],
+        "preferred_locations": [
+          "form field"
+        ],
+        "avoid_locations": [
+          "decorative-only regions"
+        ]
+      },
+      "aliases": [
+        "text field",
+        "field",
+        "form field"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "input",
+        "field",
+        "textbox",
+        "text field"
+      ],
+      "properties": [
+        "name",
+        "value",
+        "type",
+        "placeholder",
+        "required",
+        "disabled"
+      ],
+      "content_model": {
+        "required": [
+          "accessible label"
+        ],
+        "optional": [
+          "help text",
+          "validation message"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "empty",
+        "filled",
+        "focused",
+        "disabled",
+        "readonly",
+        "invalid",
+        "valid"
+      ],
+      "variations": [
+        "text",
+        "email",
+        "password",
+        "number",
+        "search",
+        "url"
+      ],
+      "relationships": [
+        {
+          "type": "contained-by",
+          "target": "form"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Placeholder text should not be the only label.",
+          "strength": "recommended",
+          "reason": "Persistent labels improve accessibility and usability.",
+          "exception": ""
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [
+        "Input should fit the available field width."
+      ],
+      "accessibility": [
+        "Provide an accessible label.",
+        "Associate validation errors with the field."
+      ],
+      "performance": [],
+      "security": [
+        "Sensitive inputs require appropriate handling."
+      ],
+      "seo": [],
+      "common_problems": [
+        "missing label",
+        "validation unclear",
+        "input overflow"
+      ],
+      "anti_patterns": [
+        "placeholder used as the only label"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "accessibility",
+          "check": "Input has an accessible name."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Email input with a persistent accessible label."
+        ],
+        "incorrect": [
+          "Textbox identified only by placeholder text."
+        ]
+      }
+    },
+
+    {
+      "id": "global-client-state",
+      "canonical_name": "Global Client State",
+      "category": "state",
+      "definition": "Client-side state that must be shared across multiple otherwise independent parts of an application.",
+      "purpose": "Coordinates shared client-side application state.",
+      "why_it_exists": "Some state cannot be conveniently owned by a single component.",
+      "placement": {
+        "where": "Application state layer",
+        "why_here": "Shared state requires ownership above individual components.",
+        "typical_parent": [
+          "application"
+        ],
+        "typical_children": [
+          "store",
+          "state-provider",
+          "selectors"
+        ],
+        "preferred_locations": [
+          "state",
+          "stores",
+          "providers"
+        ],
+        "avoid_locations": [
+          "individual components when state is genuinely global"
+        ]
+      },
+      "aliases": [
+        "global state",
+        "shared client state"
+      ],
+      "implementations": [
+        "Redux",
+        "Zustand",
+        "Context API",
+        "Pinia",
+        "Vuex"
+      ],
+      "semantic_terms": [
+        "global state",
+        "shared state",
+        "store",
+        "client state"
+      ],
+      "properties": [
+        "state shape",
+        "actions",
+        "selectors",
+        "persistence"
+      ],
+      "content_model": {
+        "required": [
+          "state ownership"
+        ],
+        "optional": [
+          "actions",
+          "selectors",
+          "persistence"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "initial",
+        "updated",
+        "persisted",
+        "reset"
+      ],
+      "variations": [
+        "ephemeral shared state",
+        "persistent client state",
+        "session state"
+      ],
+      "relationships": [
+        {
+          "type": "used-by",
+          "target": "component"
+        },
+        {
+          "type": "may-consume",
+          "target": "api-endpoint"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Use global client state only when multiple independent consumers genuinely require shared ownership.",
+          "strength": "recommended",
+          "reason": "Avoids unnecessary complexity.",
+          "exception": "Framework conventions may centralize certain state automatically."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [],
+      "performance": [
+        "Avoid unnecessary global updates that rerender unrelated UI."
+      ],
+      "security": [
+        "Do not treat client state as a trusted security boundary."
+      ],
+      "seo": [],
+      "common_problems": [
+        "unnecessary global state",
+        "state synchronization bugs",
+        "excessive rerenders"
+      ],
+      "anti_patterns": [
+        "putting every piece of local UI state into global state"
+      ],
+      "alternatives": [
+        "local component state",
+        "URL state",
+        "server state"
+      ],
+      "tradeoffs": [
+        "Global state simplifies sharing but increases coupling.",
+        "Local state reduces coupling but cannot directly coordinate unrelated components."
+      ],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "functional",
+          "check": "All intended consumers observe correct state updates."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Authenticated user context shared across application shell and pages."
+        ],
+        "incorrect": [
+          "A single modal's open state stored globally without need."
+        ]
+      }
+    },
+
+    {
+      "id": "api-endpoint",
+      "canonical_name": "API Endpoint",
+      "category": "api",
+      "definition": "A network-accessible interface through which an application exchanges data or commands with a service.",
+      "purpose": "Provides a defined interface between clients and backend capabilities.",
+      "why_it_exists": "Separate systems need predictable communication boundaries.",
+      "placement": {
+        "where": "API/server layer",
+        "why_here": "Network contracts belong at a service boundary.",
+        "typical_parent": [
+          "api",
+          "service"
+        ],
+        "typical_children": [
+          "request",
+          "response",
+          "validation",
+          "service-call"
+        ],
+        "preferred_locations": [
+          "API routes",
+          "server handlers",
+          "service layer"
+        ],
+        "avoid_locations": [
+          "UI component internals"
+        ]
+      },
+      "aliases": [
+        "API route",
+        "API resource",
+        "endpoint"
+      ],
+      "implementations": [
+        "REST",
+        "GraphQL",
+        "RPC",
+        "server action",
+        "HTTP endpoint"
+      ],
+      "semantic_terms": [
+        "API",
+        "endpoint",
+        "API route",
+        "backend route",
+        "request"
+      ],
+      "properties": [
+        "method",
+        "path",
+        "request",
+        "response",
+        "status",
+        "authentication",
+        "authorization"
+      ],
+      "content_model": {
+        "required": [
+          "contract",
+          "request/response behavior"
+        ],
+        "optional": [
+          "authentication",
+          "authorization",
+          "pagination"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "requesting",
+        "success",
+        "validation-error",
+        "unauthorized",
+        "forbidden",
+        "not-found",
+        "server-error"
+      ],
+      "variations": [
+        "public endpoint",
+        "authenticated endpoint",
+        "internal endpoint"
+      ],
+      "relationships": [
+        {
+          "type": "called-by",
+          "target": "application"
+        },
+        {
+          "type": "uses",
+          "target": "service"
+        },
+        {
+          "type": "reads-or-writes",
+          "target": "database"
+        }
+      ],
+      "dependencies": [
+        "server-runtime"
+      ],
+      "rules": [
+        {
+          "rule": "API contracts should be explicit and predictable.",
+          "strength": "recommended",
+          "reason": "Predictable contracts reduce integration errors.",
+          "exception": ""
+        },
+        {
+          "rule": "HTTP APIs should be designed according to the semantics of the chosen protocol and architecture.",
+          "strength": "recommended",
+          "reason": "Avoids accidental or inconsistent API behavior.",
+          "exception": "Non-HTTP protocols may use different semantics."
+        },
+        {
+          "rule": "Authentication and authorization must be enforced on trusted server boundaries.",
+          "strength": "required",
+          "reason": "Clients cannot be trusted to enforce security.",
+          "exception": "Public resources that intentionally require no authorization."
+        }
+      ],
+      "constraints": [
+        {
+          "rule": "Input from untrusted clients must be validated.",
+          "strength": "required",
+          "reason": "Prevents malformed or malicious data from reaching trusted operations.",
+          "exception": ""
+        }
+      ],
+      "responsive_behavior": [],
+      "accessibility": [],
+      "performance": [
+        "Avoid unnecessary network requests.",
+        "Use pagination for large datasets when appropriate."
+      ],
+      "security": [
+        "Validate input.",
+        "Authorize protected operations.",
+        "Do not expose secrets."
+      ],
+      "seo": [],
+      "common_problems": [
+        "incorrect status codes",
+        "missing validation",
+        "authorization bugs",
+        "inconsistent response shapes"
+      ],
+      "anti_patterns": [
+        "trusting client-provided authorization",
+        "embedding database logic directly into every route handler"
+      ],
+      "alternatives": [],
+      "tradeoffs": [
+        "REST is broadly interoperable but can require multiple endpoints.",
+        "GraphQL can provide flexible querying but introduces schema and operational complexity."
+      ],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "functional",
+          "check": "Valid requests return expected responses."
+        },
+        {
+          "type": "security",
+          "check": "Unauthorized operations are rejected."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Authenticated endpoint validates input and authorizes the operation before accessing data."
+        ],
+        "incorrect": [
+          "Endpoint trusts a userId supplied by the client without authorization checks."
+        ]
+      }
+    },
+
+    {
+      "id": "service",
+      "canonical_name": "Service",
+      "category": "service",
+      "definition": "A reusable application-layer unit responsible for a domain operation or external system interaction.",
+      "purpose": "Separates application operations from UI and transport concerns.",
+      "why_it_exists": "Reusable business or infrastructure operations should not be duplicated across endpoints and components.",
+      "placement": {
+        "where": "Application/service layer",
+        "why_here": "Domain operations belong outside presentation code.",
+        "typical_parent": [
+          "application"
+        ],
+        "typical_children": [
+          "business-logic",
+          "repository",
+          "external-client"
+        ],
+        "preferred_locations": [
+          "services",
+          "lib",
+          "domain"
+        ],
+        "avoid_locations": [
+          "UI component implementation"
+        ]
+      },
+      "aliases": [
+        "service layer",
+        "application service"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "service",
+        "business service",
+        "domain service"
+      ],
+      "properties": [
+        "operation",
+        "inputs",
+        "outputs",
+        "dependencies"
+      ],
+      "content_model": {
+        "required": [
+          "defined responsibility"
+        ],
+        "optional": [
+          "validation",
+          "transactions",
+          "external integrations"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [],
+      "variations": [
+        "domain service",
+        "integration service",
+        "application service"
+      ],
+      "relationships": [
+        {
+          "type": "called-by",
+          "target": "api-endpoint"
+        },
+        {
+          "type": "uses",
+          "target": "database"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Services should represent meaningful operations rather than arbitrary collections of unrelated functions.",
+          "strength": "recommended",
+          "reason": "Maintains clear boundaries.",
+          "exception": ""
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [],
+      "performance": [],
+      "security": [
+        "Services operating on protected data must enforce appropriate authorization assumptions at trusted boundaries."
+      ],
+      "seo": [],
+      "common_problems": [
+        "god service",
+        "duplicated business logic",
+        "unclear ownership"
+      ],
+      "anti_patterns": [
+        "service containing unrelated application domains"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "functional",
+          "check": "Service operation produces expected result for valid inputs."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "UserService handles user-domain operations."
+        ],
+        "incorrect": [
+          "One service handles users, payments, email, analytics, and unrelated UI formatting."
+        ]
+      }
+    },
+
+    {
+      "id": "database",
+      "canonical_name": "Database",
+      "category": "database",
+      "definition": "Persistent storage system used to store and retrieve application data.",
+      "purpose": "Provides durable data storage.",
+      "why_it_exists": "Application state that must survive requests or restarts requires persistent storage.",
+      "placement": {
+        "where": "Data/infrastructure layer",
+        "why_here": "Persistence belongs behind application data-access boundaries.",
+        "typical_parent": [
+          "infrastructure"
+        ],
+        "typical_children": [
+          "tables",
+          "collections",
+          "indexes",
+          "queries"
+        ],
+        "preferred_locations": [
+          "managed database",
+          "database server"
+        ],
+        "avoid_locations": [
+          "browser storage when durable server data is required"
+        ]
+      },
+      "aliases": [
+        "DB",
+        "data store",
+        "persistent storage"
+      ],
+      "implementations": [
+        "PostgreSQL",
+        "MySQL",
+        "SQLite",
+        "MongoDB",
+        "Cloud database"
+      ],
+      "semantic_terms": [
+        "database",
+        "DB",
+        "storage",
+        "persistent data"
+      ],
+      "properties": [
+        "schema",
+        "tables",
+        "collections",
+        "indexes",
+        "relationships"
+      ],
+      "content_model": {
+        "required": [
+          "data model"
+        ],
+        "optional": [
+          "indexes",
+          "constraints",
+          "migrations"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "available",
+        "unavailable",
+        "migrating"
+      ],
+      "variations": [
+        "relational",
+        "document",
+        "key-value",
+        "graph"
+      ],
+      "relationships": [
+        {
+          "type": "accessed-by",
+          "target": "service"
+        },
+        {
+          "type": "stores",
+          "target": "data"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Database access should normally be isolated behind an appropriate data-access boundary.",
+          "strength": "recommended",
+          "reason": "Reduces coupling.",
+          "exception": "Very small applications may intentionally use a simpler approach."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [],
+      "performance": [
+        "Indexes should support common query patterns.",
+        "Avoid unnecessary data retrieval."
+      ],
+      "security": [
+        "Credentials must be protected.",
+        "Access must follow least privilege where practical."
+      ],
+      "seo": [],
+      "common_problems": [
+        "slow queries",
+        "missing indexes",
+        "migration failures",
+        "data inconsistency"
+      ],
+      "anti_patterns": [
+        "database credentials exposed to clients"
+      ],
+      "alternatives": [
+        "in-memory storage",
+        "file storage",
+        "browser storage"
+      ],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "functional",
+          "check": "Expected records can be created, read, updated, and deleted where applicable."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Server-side service accesses the database using protected credentials."
+        ],
+        "incorrect": [
+          "Browser directly connects using privileged database credentials."
+        ]
+      }
+    },
+
+    {
+      "id": "authentication",
+      "canonical_name": "Authentication",
+      "category": "auth",
+      "definition": "The process of establishing the identity of a user or system.",
+      "purpose": "Determines who is making a request.",
+      "why_it_exists": "Protected application functionality requires identity.",
+      "placement": {
+        "where": "Trusted application/server boundary",
+        "why_here": "Identity verification must not depend solely on untrusted client state.",
+        "typical_parent": [
+          "application",
+          "server"
+        ],
+        "typical_children": [
+          "session",
+          "token",
+          "identity-provider"
+        ],
+        "preferred_locations": [
+          "server",
+          "trusted authentication provider"
+        ],
+        "avoid_locations": [
+          "client-only security checks"
+        ]
+      },
+      "aliases": [
+        "authn",
+        "login"
+      ],
+      "implementations": [
+        "session authentication",
+        "JWT authentication",
+        "OAuth",
+        "OpenID Connect"
+      ],
+      "semantic_terms": [
+        "login",
+        "sign in",
+        "authentication",
+        "identity"
+      ],
+      "properties": [
+        "identity",
+        "session",
+        "credential",
+        "provider"
+      ],
+      "content_model": {
+        "required": [
+          "identity verification mechanism"
+        ],
+        "optional": [
+          "session persistence",
+          "multi-factor authentication"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "anonymous",
+        "authenticating",
+        "authenticated",
+        "expired",
+        "signed-out"
+      ],
+      "variations": [
+        "password authentication",
+        "social login",
+        "passwordless authentication"
+      ],
+      "relationships": [
+        {
+          "type": "enables",
+          "target": "authorization"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Authentication credentials must be handled through trusted security mechanisms.",
+          "strength": "required",
+          "reason": "Authentication is a security boundary.",
+          "exception": ""
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [
+        "Authentication interfaces must be keyboard accessible and clearly labeled."
+      ],
+      "performance": [],
+      "security": [
+        "Never expose authentication secrets unnecessarily.",
+        "Use secure session handling."
+      ],
+      "seo": [],
+      "common_problems": [
+        "session expiry bugs",
+        "credential leakage",
+        "client-only authentication"
+      ],
+      "anti_patterns": [
+        "storing sensitive authentication secrets in unsafe client-accessible locations"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "security",
+          "check": "Anonymous users cannot access protected operations."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Server validates the user's authenticated session."
+        ],
+        "incorrect": [
+          "Client-side boolean is treated as proof of authentication."
+        ]
+      }
+    },
+
+    {
+      "id": "authorization",
+      "canonical_name": "Authorization",
+      "category": "auth",
+      "definition": "The process of determining whether an authenticated identity is allowed to perform an operation or access a resource.",
+      "purpose": "Controls access to protected resources and actions.",
+      "why_it_exists": "Being authenticated does not imply permission to perform every action.",
+      "placement": {
+        "where": "Trusted server/application boundary",
+        "why_here": "Authorization decisions must be enforced where trusted resources are controlled.",
+        "typical_parent": [
+          "server",
+          "service",
+          "api-endpoint"
+        ],
+        "typical_children": [
+          "policy",
+          "role",
+          "permission"
+        ],
+        "preferred_locations": [
+          "server",
+          "service layer",
+          "authorization middleware"
+        ],
+        "avoid_locations": [
+          "client-only checks"
+        ]
+      },
+      "aliases": [
+        "authz",
+        "permissions",
+        "access control"
+      ],
+      "implementations": [
+        "role-based access control",
+        "attribute-based access control",
+        "resource ownership checks"
+      ],
+      "semantic_terms": [
+        "permission",
+        "access",
+        "authorization",
+        "role"
+      ],
+      "properties": [
+        "identity",
+        "resource",
+        "action",
+        "policy"
+      ],
+      "content_model": {
+        "required": [
+          "access decision"
+        ],
+        "optional": [
+          "roles",
+          "permissions",
+          "resource ownership"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "allowed",
+        "denied"
+      ],
+      "variations": [
+        "role-based",
+        "permission-based",
+        "ownership-based"
+      ],
+      "relationships": [
+        {
+          "type": "depends-on",
+          "target": "authentication"
+        },
+        {
+          "type": "protects",
+          "target": "api-endpoint"
+        }
+      ],
+      "dependencies": [
+        "authentication"
+      ],
+      "rules": [
+        {
+          "rule": "Authorization must be enforced on trusted boundaries.",
+          "strength": "required",
+          "reason": "Client-side checks can be bypassed.",
+          "exception": ""
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [],
+      "performance": [],
+      "security": [
+        "Deny by default where appropriate.",
+        "Verify resource ownership for resource-specific operations."
+      ],
+      "seo": [],
+      "common_problems": [
+        "privilege escalation",
+        "missing ownership checks",
+        "client-only authorization"
+      ],
+      "anti_patterns": [
+        "hiding UI and assuming access is therefore denied"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "security",
+          "check": "Unauthorized users cannot perform protected operations."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Server verifies that the authenticated user owns the requested resource."
+        ],
+        "incorrect": [
+          "Client hides the delete button but API allows deletion for any authenticated user."
+        ]
+      }
+    },
+
+    {
+      "id": "loading-state",
+      "canonical_name": "Loading State",
+      "category": "feedback",
+      "definition": "UI state representing an operation that has started but has not completed.",
+      "purpose": "Communicates ongoing work to the user.",
+      "why_it_exists": "Users need feedback while asynchronous work is in progress.",
+      "placement": {
+        "where": "Within the region affected by the operation",
+        "why_here": "Feedback should correspond directly to the work in progress.",
+        "typical_parent": [
+          "page",
+          "component",
+          "form"
+        ],
+        "typical_children": [
+          "spinner",
+          "skeleton",
+          "progress"
+        ],
+        "preferred_locations": [
+          "affected content region"
+        ],
+        "avoid_locations": [
+          "unrelated global regions unless the operation is global"
+        ]
+      },
+      "aliases": [
+        "loading indicator",
+        "progress state"
+      ],
+      "implementations": [
+        "spinner",
+        "skeleton",
+        "progress bar"
+      ],
+      "semantic_terms": [
+        "loading",
+        "fetching",
+        "processing",
+        "working"
+      ],
+      "properties": [
+        "message",
+        "progress",
+        "scope"
+      ],
+      "content_model": {
+        "required": [],
+        "optional": [
+          "message",
+          "progress"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "active",
+        "complete"
+      ],
+      "variations": [
+        "inline loading",
+        "page loading",
+        "skeleton loading",
+        "button loading"
+      ],
+      "relationships": [
+        {
+          "type": "represents",
+          "target": "async-operation"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Loading feedback should correspond to meaningful asynchronous work.",
+          "strength": "recommended",
+          "reason": "Prevents unnecessary visual noise.",
+          "exception": "Very fast operations may not require visible loading UI."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [
+        "Loading state should be perceivable by assistive technologies when appropriate."
+      ],
+      "performance": [],
+      "security": [],
+      "seo": [],
+      "common_problems": [
+        "infinite loading",
+        "loading indicator in wrong scope",
+        "layout shift"
+      ],
+      "anti_patterns": [
+        "blocking the entire application for a local operation"
+      ],
+      "alternatives": [
+        "skeleton",
+        "progress indicator"
+      ],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "functional",
+          "check": "Loading state ends when the operation completes or fails."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Save button enters loading state during submission."
+        ],
+        "incorrect": [
+          "Entire application becomes blocked while a small card refreshes."
+        ]
+      }
+    },
+
+    {
+      "id": "error-state",
+      "canonical_name": "Error State",
+      "category": "feedback",
+      "definition": "UI state representing a failed operation or unavailable resource.",
+      "purpose": "Communicates failure and provides recovery information.",
+      "why_it_exists": "Users need to understand failures and what they can do next.",
+      "placement": {
+        "where": "Within the affected content or operation region",
+        "why_here": "The error should be associated with its cause.",
+        "typical_parent": [
+          "page",
+          "form",
+          "component"
+        ],
+        "typical_children": [
+          "message",
+          "retry-action",
+          "help"
+        ],
+        "preferred_locations": [
+          "affected content region"
+        ],
+        "avoid_locations": [
+          "unrelated regions"
+        ]
+      },
+      "aliases": [
+        "failure state",
+        "error UI"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "error",
+        "failed",
+        "failure",
+        "something went wrong"
+      ],
+      "properties": [
+        "message",
+        "cause",
+        "recovery"
+      ],
+      "content_model": {
+        "required": [
+          "clear failure indication"
+        ],
+        "optional": [
+          "retry action",
+          "support information"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "visible",
+        "resolved"
+      ],
+      "variations": [
+        "inline error",
+        "page error",
+        "form error",
+        "network error"
+      ],
+      "relationships": [
+        {
+          "type": "represents",
+          "target": "failed-operation"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Error messages should explain the problem at an appropriate level and provide recovery when possible.",
+          "strength": "recommended",
+          "reason": "Improves user recovery.",
+          "exception": "Security-sensitive errors may require intentionally generic messages."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [
+        "Important errors should be exposed to assistive technologies."
+      ],
+      "performance": [],
+      "security": [
+        "Do not expose secrets, stack traces, or sensitive internal details to users."
+      ],
+      "seo": [],
+      "common_problems": [
+        "generic errors",
+        "no recovery path",
+        "technical details exposed"
+      ],
+      "anti_patterns": [
+        "showing raw server stack traces to users"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "functional",
+          "check": "Failure is represented and recoverable where recovery is possible."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Data loading failure with retry action."
+        ],
+        "incorrect": [
+          "Raw exception stack trace shown to end users."
+        ]
+      }
+    },
+
+    {
+      "id": "accessibility",
+      "canonical_name": "Accessibility",
+      "category": "accessibility",
+      "definition": "Design and implementation practices that make web experiences usable by people with diverse abilities and interaction methods.",
+      "purpose": "Ensures application functionality is broadly accessible.",
+      "why_it_exists": "Users may interact through keyboards, screen readers, touch, voice, magnification, and other assistive technologies.",
+      "placement": {
+        "where": "Cross-cutting application concern",
+        "why_here": "Accessibility affects every UI layer.",
+        "typical_parent": [
+          "application"
+        ],
+        "typical_children": [
+          "semantic-html",
+          "keyboard-navigation",
+          "focus-management",
+          "labels"
+        ],
+        "preferred_locations": [
+          "all UI layers"
+        ],
+        "avoid_locations": [
+          "treating accessibility as a final isolated patch"
+        ]
+      },
+      "aliases": [
+        "a11y",
+        "accessible UI"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "accessibility",
+        "a11y",
+        "screen reader",
+        "keyboard access"
+      ],
+      "properties": [
+        "semantics",
+        "focus",
+        "labels",
+        "contrast",
+        "interaction"
+      ],
+      "content_model": {
+        "required": [],
+        "optional": [],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [],
+      "variations": [],
+      "relationships": [
+        {
+          "type": "applies-to",
+          "target": "component"
+        },
+        {
+          "type": "applies-to",
+          "target": "page"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Prefer native semantic HTML when it provides the required behavior.",
+          "strength": "recommended",
+          "reason": "Native semantics generally provide built-in accessibility behavior.",
+          "exception": "Custom components may be necessary when native controls cannot satisfy requirements."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [
+        "Keyboard navigation",
+        "Accessible names",
+        "Logical focus order",
+        "Semantic structure",
+        "Appropriate contrast"
+      ],
+      "performance": [],
+      "security": [],
+      "seo": [],
+      "common_problems": [
+        "missing labels",
+        "keyboard traps",
+        "incorrect semantics",
+        "poor focus management"
+      ],
+      "anti_patterns": [
+        "using ARIA to replace correct native semantics unnecessarily"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "accessibility",
+          "check": "Primary interactions are keyboard accessible."
+        },
+        {
+          "type": "accessibility",
+          "check": "Interactive controls have accessible names."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Native button used for an action."
+        ],
+        "incorrect": [
+          "Clickable div with no keyboard support."
+        ]
+      }
+    },
+
+    {
+      "id": "seo",
+      "canonical_name": "SEO",
+      "category": "seo",
+      "definition": "Practices that help public web content be discoverable, understandable, and correctly represented by search engines.",
+      "purpose": "Improves discoverability and search-result representation.",
+      "why_it_exists": "Public content often depends on search visibility.",
+      "placement": {
+        "where": "Page and application metadata layer",
+        "why_here": "Search engines evaluate document structure and metadata.",
+        "typical_parent": [
+          "page",
+          "route"
+        ],
+        "typical_children": [
+          "title",
+          "meta-description",
+          "canonical",
+          "structured-data"
+        ],
+        "preferred_locations": [
+          "document metadata"
+        ],
+        "avoid_locations": [
+          "irrelevant client-only UI state"
+        ]
+      },
+      "aliases": [
+        "search optimization",
+        "search engine optimization"
+      ],
+      "implementations": [],
+      "semantic_terms": [
+        "SEO",
+        "search ranking",
+        "metadata",
+        "canonical URL"
+      ],
+      "properties": [
+        "title",
+        "description",
+        "canonical URL",
+        "structured data",
+        "indexability"
+      ],
+      "content_model": {
+        "required": [],
+        "optional": [
+          "metadata",
+          "structured data"
+        ],
+        "conditional": [
+          "canonical URL for indexable public pages"
+        ],
+        "forbidden": []
+      },
+      "states": [],
+      "variations": [],
+      "relationships": [
+        {
+          "type": "applies-to",
+          "target": "page"
+        },
+        {
+          "type": "depends-on",
+          "target": "semantic-html"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Public pages should have meaningful document titles.",
+          "strength": "recommended",
+          "reason": "Titles identify pages to users and search systems.",
+          "exception": "Non-public application interfaces."
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [],
+      "performance": [
+        "Avoid unnecessary client-only rendering when discoverability depends on content availability."
+      ],
+      "security": [],
+      "seo": [
+        "Meaningful title",
+        "Relevant description where appropriate",
+        "Canonical URL where appropriate",
+        "Semantic content structure"
+      ],
+      "common_problems": [
+        "duplicate titles",
+        "missing metadata",
+        "incorrect canonical URLs"
+      ],
+      "anti_patterns": [
+        "keyword stuffing",
+        "hiding important content solely for SEO"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "seo",
+          "check": "Public pages expose appropriate title and metadata."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Each public product page has an appropriate title and canonical URL."
+        ],
+        "incorrect": [
+          "Every page uses exactly the same title."
+        ]
+      }
+    },
+
+    {
+      "id": "build-configuration",
+      "canonical_name": "Build Configuration",
+      "category": "build",
+      "definition": "Configuration controlling how application source code is transformed, bundled, validated, and prepared for execution or deployment.",
+      "purpose": "Produces a runnable application artifact.",
+      "why_it_exists": "Source code often requires compilation, bundling, transformation, or validation.",
+      "placement": {
+        "where": "Project root or framework-defined configuration location",
+        "why_here": "Build tools need project-wide configuration.",
+        "typical_parent": [
+          "project"
+        ],
+        "typical_children": [
+          "build-script",
+          "compiler-config",
+          "bundler-config"
+        ],
+        "preferred_locations": [
+          "project root",
+          "framework configuration directory"
+        ],
+        "avoid_locations": [
+          "runtime-generated directories"
+        ]
+      },
+      "aliases": [
+        "build config",
+        "build setup"
+      ],
+      "implementations": [
+        "Vite",
+        "Webpack",
+        "Turbopack",
+        "framework build system"
+      ],
+      "semantic_terms": [
+        "build",
+        "compile",
+        "bundle",
+        "build config"
+      ],
+      "properties": [
+        "scripts",
+        "entry points",
+        "output",
+        "environment",
+        "compiler"
+      ],
+      "content_model": {
+        "required": [],
+        "optional": [
+          "build scripts",
+          "compiler settings",
+          "bundler settings"
+        ],
+        "conditional": [],
+        "forbidden": []
+      },
+      "states": [
+        "configured",
+        "building",
+        "success",
+        "failed"
+      ],
+      "variations": [],
+      "relationships": [
+        {
+          "type": "belongs-to",
+          "target": "project"
+        },
+        {
+          "type": "produces",
+          "target": "build-artifact"
+        }
+      ],
+      "dependencies": [],
+      "rules": [
+        {
+          "rule": "Build configuration should match the project's actual runtime and source structure.",
+          "strength": "required",
+          "reason": "Mismatched configuration prevents reliable builds.",
+          "exception": ""
+        }
+      ],
+      "constraints": [],
+      "responsive_behavior": [],
+      "accessibility": [],
+      "performance": [
+        "Build should avoid unnecessary work where practical."
+      ],
+      "security": [
+        "Do not embed secrets into public build output."
+      ],
+      "seo": [],
+      "common_problems": [
+        "missing runtime",
+        "incorrect entry point",
+        "dependency mismatch",
+        "environment mismatch"
+      ],
+      "anti_patterns": [
+        "committing generated build output as source without a reason"
+      ],
+      "alternatives": [],
+      "tradeoffs": [],
+      "implementation_notes": [],
+      "verification": [
+        {
+          "type": "build",
+          "check": "Build completes successfully."
+        }
+      ],
+      "examples": {
+        "correct": [
+          "Build configuration resolves the project's entry point and dependencies."
+        ],
+        "incorrect": [
+          "Static index.html added to a project that requires a package-based build runtime."
+        ]
+      }
+    }
+  ],
+
+  "relationships": [
+    {
+      "source": "project",
+      "type": "contains",
+      "target": "application"
+    },
+    {
+      "source": "application",
+      "type": "contains",
+      "target": "route"
+    },
+    {
+      "source": "route",
+      "type": "renders",
+      "target": "page"
+    },
+    {
+      "source": "layout",
+      "type": "contains",
+      "target": "page"
+    },
+    {
+      "source": "page",
+      "type": "composes",
+      "target": "component"
+    },
+    {
+      "source": "layout",
+      "type": "contains",
+      "target": "navigation"
+    },
+    {
+      "source": "navigation",
+      "type": "targets",
+      "target": "route"
+    },
+    {
+      "source": "page",
+      "type": "uses",
+      "target": "global-client-state"
+    },
+    {
+      "source": "application",
+      "type": "calls",
+      "target": "api-endpoint"
+    },
+    {
+      "source": "api-endpoint",
+      "type": "uses",
+      "target": "service"
+    },
+    {
+      "source": "service",
+      "type": "accesses",
+      "target": "database"
+    },
+    {
+      "source": "authentication",
+      "type": "enables",
+      "target": "authorization"
+    },
+    {
+      "source": "authorization",
+      "type": "protects",
+      "target": "api-endpoint"
+    },
+    {
+      "source": "form",
+      "type": "submits-to",
+      "target": "api-endpoint"
+    },
+    {
+      "source": "component",
+      "type": "must-consider",
+      "target": "accessibility"
+    },
+    {
+      "source": "page",
+      "type": "must-consider",
+      "target": "seo"
+    },
+    {
+      "source": "project",
+      "type": "uses",
+      "target": "build-configuration"
+    }
+  ],
+
+  "decisions": [
+    {
+      "id": "state-ownership",
+      "question": "Where should application state live?",
+      "decision_rules": [
+        {
+          "condition": "Only one component needs the state",
+          "preferred": "local component state"
+        },
+        {
+          "condition": "A small parent and its descendants need the state",
+          "preferred": "lifted/shared local state"
+        },
+        {
+          "condition": "Unrelated application areas need the same client state",
+          "preferred": "global client state"
+        },
+        {
+          "condition": "State is primarily represented by URL parameters",
+          "preferred": "URL state"
+        },
+        {
+          "condition": "State originates from a backend resource",
+          "preferred": "server/data state"
+        }
+      ]
+    },
+    {
+      "id": "button-vs-link",
+      "question": "Should an interaction be a button or a link?",
+      "decision_rules": [
+        {
+          "condition": "Interaction performs an action",
+          "preferred": "button"
+        },
+        {
+          "condition": "Interaction navigates to another destination",
+          "preferred": "link"
+        }
+      ]
+    },
+    {
+      "id": "client-vs-server",
+      "question": "Where should logic execute?",
+      "decision_rules": [
+        {
+          "condition": "Logic requires secret credentials or privileged resources",
+          "preferred": "server"
+        },
+        {
+          "condition": "Logic requires direct user interaction or browser APIs",
+          "preferred": "client"
+        },
+        {
+          "condition": "Logic can be safely executed without browser-specific capabilities",
+          "preferred": "server when it reduces client complexity"
+        }
+      ]
+    },
+    {
+      "id": "component-boundary",
+      "question": "Should UI code become a separate reusable component?",
+      "decision_rules": [
+        {
+          "condition": "UI is reused in multiple places",
+          "preferred": "extract reusable component"
+        },
+        {
+          "condition": "UI has a clear independent responsibility",
+          "preferred": "consider component extraction"
+        },
+        {
+          "condition": "Extraction would only create unnecessary abstraction",
+          "preferred": "keep local"
+        }
+      ]
+    }
+  ],
+
+  "patterns": [
+    {
+      "id": "layered-architecture",
+      "name": "Layered Architecture",
+      "description": "Separates presentation, application logic, data access, and infrastructure concerns.",
+      "benefits": [
+        "clear responsibilities",
+        "testability",
+        "maintainability"
+      ],
+      "risks": [
+        "too many abstractions for small applications"
+      ],
+      "when_to_use": "When the application has meaningful separation between UI, domain logic, and infrastructure."
+    },
+    {
+      "id": "component-composition",
+      "name": "Component Composition",
+      "description": "Builds larger UI structures by composing smaller reusable components.",
+      "benefits": [
+        "reuse",
+        "consistency",
+        "maintainability"
+      ],
+      "risks": [
+        "over-fragmentation"
+      ],
+      "when_to_use": "When UI structures contain repeated or independently meaningful concerns."
+    },
+    {
+      "id": "responsive-adaptation",
+      "name": "Responsive Adaptation",
+      "description": "UI structure adapts to viewport and container constraints instead of assuming one fixed screen size.",
+      "benefits": [
+        "mobile usability",
+        "device compatibility"
+      ],
+      "risks": [
+        "complex responsive rules"
+      ],
+      "when_to_use": "For interfaces expected to operate across different viewport sizes."
+    },
+    {
+      "id": "progressive-disclosure",
+      "name": "Progressive Disclosure",
+      "description": "Shows essential information first and reveals secondary complexity when needed.",
+      "benefits": [
+        "reduced cognitive load",
+        "cleaner interfaces"
+      ],
+      "risks": [
+        "important information may become harder to discover"
+      ],
+      "when_to_use": "When the interface contains substantial optional complexity."
+    }
+  ],
+
+  "anti_patterns": [
+    {
+      "id": "god-component",
+      "name": "God Component",
+      "description": "A single component owns unrelated presentation, state, business logic, data access, and infrastructure responsibilities.",
+      "symptoms": [
+        "very large component",
+        "many unrelated imports",
+        "difficult testing",
+        "frequent regressions"
+      ],
+      "risks": [
+        "high coupling",
+        "poor maintainability"
+      ],
+      "preferred_direction": "Separate responsibilities according to actual architectural boundaries."
+    },
+    {
+      "id": "client-only-security",
+      "name": "Client-Only Security",
+      "description": "Security decisions are enforced only through client-side UI or state.",
+      "symptoms": [
+        "hidden buttons treated as authorization",
+        "client-only route guards",
+        "trusted user IDs from client"
+      ],
+      "risks": [
+        "authorization bypass",
+        "data exposure"
+      ],
+      "preferred_direction": "Enforce security on trusted server boundaries."
+    },
+    {
+      "id": "global-state-everything",
+      "name": "Global State Everything",
+      "description": "All application state is placed into global state regardless of scope.",
+      "symptoms": [
+        "large global store",
+        "local UI state in global store",
+        "unnecessary rerenders"
+      ],
+      "risks": [
+        "coupling",
+        "complexity"
+      ],
+      "preferred_direction": "Keep state at the narrowest ownership level that satisfies the requirements."
+    },
+    {
+      "id": "magic-layout-values",
+      "name": "Magic Layout Values",
+      "description": "Hardcoded dimensions are used without considering content or viewport constraints.",
+      "symptoms": [
+        "mobile overflow",
+        "clipped content",
+        "broken layouts"
+      ],
+      "risks": [
+        "responsive failures"
+      ],
+      "preferred_direction": "Use flexible sizing, constraints, and responsive adaptation."
+    }
+  ],
+
+  "diagnostic_rules": [
+    {
+      "id": "mobile-horizontal-overflow",
+      "problem": "Mobile horizontal overflow",
+      "symptoms": [
+        "horizontal scrollbar",
+        "content extends beyond viewport",
+        "page wider than screen",
+        "elements clipped horizontally"
+      ],
+      "likely_causes": [
+        "fixed-width element",
+        "minimum width constraint",
+        "large image or media",
+        "long unbroken text",
+        "negative margin",
+        "absolute-positioned element",
+        "desktop navigation remaining visible",
+        "container width calculation error"
+      ],
+      "inspection_targets": [
+        "body width",
+        "main container",
+        "navigation",
+        "drawer",
+        "images",
+        "tables",
+        "fixed-width components",
+        "CSS min-width",
+        "absolute positioning"
+      ],
+      "possible_fixes": [
+        "remove unnecessary fixed widths",
+        "use max-width constraints",
+        "allow content to shrink",
+        "adapt navigation for mobile",
+        "constrain media",
+        "handle long text"
+      ],
+      "risks": [
+        "hiding overflow globally can conceal the actual bug"
+      ],
+      "verification": [
+        "test narrow viewport",
+        "inspect document width",
+        "check affected component boundaries"
+      ]
+    },
+    {
+      "id": "build-failure",
+      "problem": "Project build failure",
+      "symptoms": [
+        "build command fails",
+        "missing runtime",
+        "module resolution failure",
+        "compiler error"
+      ],
+      "likely_causes": [
+        "missing package.json",
+        "incorrect build configuration",
+        "missing dependency",
+        "wrong entry point",
+        "environment mismatch"
+      ],
+      "inspection_targets": [
+        "package.json",
+        "build configuration",
+        "source entry point",
+        "dependencies",
+        "runtime configuration"
+      ],
+      "possible_fixes": [
+        "restore required project runtime",
+        "install missing dependency",
+        "correct build configuration",
+        "align entry point with framework"
+      ],
+      "risks": [
+        "adding unrelated files may mask the actual architecture"
+      ],
+      "verification": [
+        "run build again",
+        "verify generated artifact",
+        "run application if applicable"
+      ]
+    },
+    {
+      "id": "api-failure",
+      "problem": "API request failure",
+      "symptoms": [
+        "network error",
+        "unexpected status code",
+        "empty response",
+        "authentication failure"
+      ],
+      "likely_causes": [
+        "incorrect endpoint",
+        "invalid request payload",
+        "authentication failure",
+        "authorization failure",
+        "server error",
+        "environment configuration issue"
+      ],
+      "inspection_targets": [
+        "request URL",
+        "HTTP method",
+        "headers",
+        "payload",
+        "response status",
+        "server logs",
+        "environment variables"
+      ],
+      "possible_fixes": [
+        "correct request contract",
+        "fix authentication",
+        "fix server validation",
+        "correct environment configuration"
+      ],
+      "risks": [
+        "changing client behavior without understanding server contract"
+      ],
+      "verification": [
+        "repeat request",
+        "verify status and response",
+        "test unauthorized behavior"
+      ]
+    },
+    {
+      "id": "inconsistent-ui-state",
+      "problem": "UI displays stale or inconsistent state",
+      "symptoms": [
+        "UI does not update",
+        "different components show different values",
+        "state resets unexpectedly"
+      ],
+      "likely_causes": [
+        "incorrect state ownership",
+        "duplicated state",
+        "stale cache",
+        "missing update",
+        "incorrect effect dependency"
+      ],
+      "inspection_targets": [
+        "state owner",
+        "data flow",
+        "cache",
+        "event handlers",
+        "effects"
+      ],
+      "possible_fixes": [
+        "establish a single source of truth",
+        "move state to the correct owner",
+        "invalidate or update stale data"
+      ],
+      "risks": [
+        "creating unnecessary global state"
+      ],
+      "verification": [
+        "update state",
+        "observe all intended consumers",
+        "reload where persistence is expected"
+      ]
+    }
+  ],
+
+  "verification_rules": [
+    {
+      "id": "static-verification",
+      "level": "static",
+      "purpose": "Detect structural and code-level problems without running the application.",
+      "checks": [
+        "file structure",
+        "imports",
+        "types",
+        "configuration",
+        "semantic HTML"
+      ]
+    },
+    {
+      "id": "build-verification",
+      "level": "build",
+      "purpose": "Confirm the project can be transformed into a runnable artifact.",
+      "checks": [
+        "dependency resolution",
+        "compilation",
+        "bundling",
+        "build output"
+      ]
+    },
+    {
+      "id": "runtime-verification",
+      "level": "runtime",
+      "purpose": "Confirm the application starts and runs.",
+      "checks": [
+        "startup",
+        "runtime errors",
+        "route availability"
+      ]
+    },
+    {
+      "id": "functional-verification",
+      "level": "functional",
+      "purpose": "Confirm intended user behavior works.",
+      "checks": [
+        "forms",
+        "navigation",
+        "actions",
+        "API operations",
+        "state transitions"
+      ]
+    },
+    {
+      "id": "visual-verification",
+      "level": "visual",
+      "purpose": "Confirm the rendered interface matches the intended design and structure.",
+      "checks": [
+        "layout",
+        "spacing",
+        "alignment",
+        "responsive behavior",
+        "overflow",
+        "visual states"
+      ]
+    },
+    {
+      "id": "accessibility-verification",
+      "level": "accessibility",
+      "purpose": "Confirm major interactions and content are accessible.",
+      "checks": [
+        "keyboard navigation",
+        "focus",
+        "accessible names",
+        "semantic structure",
+        "error communication"
+      ]
+    },
+    {
+      "id": "security-verification",
+      "level": "security",
+      "purpose": "Confirm protected operations cannot be bypassed.",
+      "checks": [
+        "authentication",
+        "authorization",
+        "input validation",
+        "secret exposure",
+        "resource ownership"
+      ]
+    },
+    {
+      "id": "performance-verification",
+      "level": "performance",
+      "purpose": "Detect significant performance regressions.",
+      "checks": [
+        "unnecessary requests",
+        "large assets",
+        "rendering bottlenecks",
+        "bundle growth",
+        "slow operations"
+      ]
+    },
+    {
+      "id": "regression-verification",
+      "level": "regression",
+      "purpose": "Confirm a change did not break existing behavior.",
+      "checks": [
+        "affected routes",
+        "related components",
+        "related API operations",
+        "existing tests"
+      ]
+    }
+  ],
+
+  "semantic_patterns": [
+    {
+      "user_phrase": "left menu",
+      "possible_meaning": "app-drawer",
+      "confidence": 0.95
+    },
+    {
+      "user_phrase": "sidebar",
+      "possible_meaning": "app-drawer",
+      "confidence": 0.95
+    },
+    {
+      "user_phrase": "side menu",
+      "possible_meaning": "app-drawer",
+      "confidence": 0.95
+    },
+    {
+      "user_phrase": "screen",
+      "possible_meaning": "page",
+      "confidence": 0.85
+    },
+    {
+      "user_phrase": "page",
+      "possible_meaning": "page",
+      "confidence": 0.95
+    },
+    {
+      "user_phrase": "field",
+      "possible_meaning": "input",
+      "confidence": 0.85
+    },
+    {
+      "user_phrase": "text field",
+      "possible_meaning": "input",
+      "confidence": 0.95
+    },
+    {
+      "user_phrase": "login",
+      "possible_meaning": "authentication",
+      "confidence": 0.9
+    },
+    {
+      "user_phrase": "permissions",
+      "possible_meaning": "authorization",
+      "confidence": 0.95
+    },
+    {
+      "user_phrase": "API route",
+      "possible_meaning": "api-endpoint",
+      "confidence": 0.95
+    },
+    {
+      "user_phrase": "global state",
+      "possible_meaning": "global-client-state",
+      "confidence": 0.95
+    },
+    {
+      "user_phrase": "loading spinner",
+      "possible_meaning": "loading-state",
+      "confidence": 0.9
+    },
+    {
+      "user_phrase": "something went wrong",
+      "possible_meaning": "error-state",
+      "confidence": 0.8
+    },
+    {
+      "user_phrase": "build is failing",
+      "possible_meaning": "build-configuration",
+      "confidence": 0.75
+    }
+  ],
+
+  "ambiguity_rules": [
+    {
+      "term": "sidebar",
+      "possible_entities": [
+        "app-drawer",
+        "contextual-navigation"
+      ],
+      "resolution_hint": "Prefer app-drawer when the element provides primary application navigation. Prefer contextual navigation when it only navigates within the current content."
+    },
+    {
+      "term": "menu",
+      "possible_entities": [
+        "navigation",
+        "dropdown-menu",
+        "context-menu"
+      ],
+      "resolution_hint": "Resolve using surrounding interaction and destination semantics."
+    },
+    {
+      "term": "state",
+      "possible_entities": [
+        "global-client-state",
+        "local-component-state",
+        "server-state",
+        "URL-state"
+      ],
+      "resolution_hint": "Determine ownership, scope, persistence, and source before selecting the state model."
+    }
+  ],
+
+  "quality_rules": [
+    {
+      "rule": "Every entity must have a unique id.",
+      "severity": "required"
+    },
+    {
+      "rule": "Every entity must have a canonical_name.",
+      "severity": "required"
+    },
+    {
+      "rule": "Aliases must represent alternate names for the same concept.",
+      "severity": "required"
+    },
+    {
+      "rule": "Implementation technologies must not be stored as aliases.",
+      "severity": "required"
+    },
+    {
+      "rule": "Every relationship target must resolve to a known entity or explicitly defined external concept.",
+      "severity": "required"
+    },
+    {
+      "rule": "Rules must specify strength when they are not universally mandatory.",
+      "severity": "required"
+    },
+    {
+      "rule": "Security guidance must distinguish client-side UX behavior from trusted security enforcement.",
+      "severity": "required"
+    },
+    {
+      "rule": "Diagnostic rules should distinguish symptoms from likely causes.",
+      "severity": "recommended"
+    },
+    {
+      "rule": "Verification should identify the appropriate verification level.",
+      "severity": "recommended"
+    },
+    {
+      "rule": "Knowledge should describe concepts independently of a single framework where possible.",
+      "severity": "recommended"
+    }
+  ],
+
+  "architecture_graph": {
+    "project": [
+      "application",
+      "repository",
+      "build-configuration",
+      "environment-configuration",
+      "assets",
+      "tests"
+    ],
+    "application": [
+      "routes",
+      "layouts",
+      "pages",
+      "components",
+      "state",
+      "services",
+      "api"
+    ],
+    "route": [
+      "page",
+      "layout"
+    ],
+    "page": [
+      "sections",
+      "components",
+      "forms",
+      "feedback"
+    ],
+    "component": [
+      "state",
+      "events",
+      "services"
+    ],
+    "api": [
+      "authentication",
+      "authorization",
+      "services",
+      "database"
+    ],
+    "service": [
+      "business-logic",
+      "repository",
+      "database",
+      "external-integration"
+    ],
+    "infrastructure": [
+      "database",
+      "deployment",
+      "observability",
+      "environment"
+    ]
+  },
+
+  "framework_neutrality": {
+    "default": true,
+    "rule": "Core conceptual entities must remain framework-neutral. Framework-specific implementations may be listed under implementations."
+  },
+
+  "retrieval_guidance": {
+    "primary_key": "id",
+    "search_fields": [
+      "canonical_name",
+      "aliases",
+      "semantic_terms",
+      "definition",
+      "purpose",
+      "common_problems",
+      "semantic_patterns"
+    ],
+    "relationship_fields": [
+      "relationships",
+      "dependencies"
+    ],
+    "diagnostic_fields": [
+      "common_problems",
+      "diagnostic_rules",
+      "anti_patterns"
+    ],
+    "verification_fields": [
+      "verification",
+      "verification_rules"
+    ],
+    "preferred_resolution_order": [
+      "exact canonical_name",
+      "exact alias",
+      "semantic term",
+      "semantic pattern",
+      "relationship context",
+      "diagnostic context"
+    ]
+  },
+
+  "validation": {
+    "required_top_level_sections": [
+      "dataset",
+      "entities",
+      "relationships",
+      "decisions",
+      "patterns",
+      "anti_patterns",
+      "diagnostic_rules",
+      "verification_rules",
+      "semantic_patterns",
+      "ambiguity_rules",
+      "quality_rules"
+    ],
+    "entity_required_fields": [
+      "id",
+      "canonical_name",
+      "category",
+      "definition",
+      "purpose",
+      "why_it_exists",
+      "placement",
+      "aliases",
+      "implementations",
+      "semantic_terms",
+      "properties",
+      "content_model",
+      "states",
+      "variations",
+      "relationships",
+      "dependencies",
+      "rules",
+      "constraints",
+      "responsive_behavior",
+      "accessibility",
+      "performance",
+      "security",
+      "seo",
+      "common_problems",
+      "anti_patterns",
+      "alternatives",
+      "tradeoffs",
+      "implementation_notes",
+      "verification",
+      "examples"
+    ],
+    "checks": [
+      "valid JSON",
+      "unique entity ids",
+      "unique canonical names",
+      "no duplicate aliases within an entity",
+      "relationship targets resolve",
+      "semantic pattern targets resolve",
+      "required fields exist",
+      "rule strengths are valid",
+      "verification levels are valid",
+      "no secrets or credentials",
+      "no framework-specific concept incorrectly represented as universal truth"
+    ]
+  }
+}

@@ -305,6 +305,9 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
     const { fixUseBeforeInit } = await import("../../../sandbox/intelligence/validate");
     const lastErr = log.filter((l) => /USE_BEFORE_INIT/.test(l)).slice(-1)[0] ?? "";
     const flagged = [...lastErr.matchAll(/"file":"([^"]+)"/g)].map((m) => m[1]!);
+    // Invisible characters (zero-width spaces, BOMs) some models emit break parsing and can't be "seen" to fix by hand.
+    const cleaned = await sess.autoFix(sess.pendingChanges.filter((p) => /\.(m?[jt]sx?|css|html?|json)$/.test(p)), (_p, c) => { const n = c.replace(/[\u200B-\u200D\u2060\uFEFF]/g, ""); return n === c ? null : n; });
+    if (cleaned.length) log.push(`(automatic) Removed invisible characters from ${cleaned.join(", ")}.`);
     const moved = await sess.autoFix([...new Set([...sess.pendingChanges, ...flagged])].filter((p) => /\.[jt]sx?$/.test(p)), fixUseBeforeInit);
     if (moved.length) log.push(`(automatic) Moved declarations above their first use in ${moved.join(", ")} (they were used before being defined).`);
   }

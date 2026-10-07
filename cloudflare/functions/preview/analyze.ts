@@ -2,7 +2,7 @@
 // Deterministic signals (build failure, uncaught errors, blank DOM, failed local assets, overflow) always win over
 // the vision model: the screenshot analysis is supporting evidence, never an override of a hard runtime error.
 
-export type IssueType = "none" | "build_error" | "blank_screen" | "runtime_error" | "broken_layout" | "missing_content" | "overflow" | "broken_assets" | "visual_defect" | "loading_stuck" | "navigation_failure" | "unknown";
+export type IssueType = "none" | "build_error" | "blank_screen" | "runtime_error" | "broken_layout" | "missing_content" | "overflow" | "broken_assets" | "visual_defect" | "unstyled" | "loading_stuck" | "navigation_failure" | "unknown";
 export type Severity = "none" | "low" | "medium" | "high" | "critical";
 
 export interface VisualVerdict {
@@ -24,9 +24,10 @@ export interface ViewDiag {
     title?: string; bodyText?: string; bodyTextLength?: number; rootFound?: boolean; rootChildren?: number | null; visibleElements?: number;
     headings?: string[]; hasNav?: boolean; hasFooter?: boolean; images?: number; brokenImages?: string[]; scrollWidth?: number; viewportWidth?: number;
     horizontalOverflow?: boolean; elementsOutsideViewport?: number; errorOverlay?: boolean; evaluateError?: string;
+    styles?: { sheets: number; rules: number; unreadable: number; links: { href: string | null; loaded: boolean }[]; classCount: number; unmatchedClasses: string[]; unmatchedCount: number; bodyMargin: string; bodyFont: string; bodyBg: string; defaultLinkColor: boolean | null; defaultButton: boolean | null };
   };
 }
-export interface PreviewDiag { stage: string; error?: string; url?: string; views?: ViewDiag[] }
+export interface PreviewDiag { stage: string; error?: string; url?: string; views?: ViewDiag[]; build?: { cssAssets: { file: string; bytes: number }[] } }
 
 /** Final outcome of one verification cycle. `unverifiable` = the check itself could not run (infrastructure), which
  *  is reported honestly and never treated as a code defect to "repair". */
@@ -84,6 +85,8 @@ export function deterministicVerdict(d: PreviewDiag): VisualVerdict | null | { u
     const paths = [...new Set(badLocal.map((r) => r.url.replace(LOCAL, "/")))];
     return fail("broken_assets", "high", `The app requests files that do not exist: ${paths.slice(0, 3).join(", ")}`, badLocal.map((r) => `${r.status ?? r.error} ${r.url.replace(LOCAL, "/")}`), "Fix the asset paths (files in public/ are referenced from /, files in src/ must be imported).", [...filesIn(paths.join(" ")), "index.html"]);
   }
+  const unstyled = styleVerdict(d);
+  if (unstyled) return unstyled;
   const mobile = all.find((v) => v.viewport === "mobile");
   if (mobile?.dom?.horizontalOverflow && (mobile.dom.scrollWidth ?? 0) > (mobile.dom.viewportWidth ?? 390) + 40) {
     return fail("overflow", "medium", `On mobile the page is ${mobile.dom.scrollWidth}px wide for a ${mobile.dom.viewportWidth}px screen, so it scrolls sideways.`, [`${mobile.dom.elementsOutsideViewport ?? 0} elements extend past the right edge`], "Remove fixed widths wider than the screen; use max-width:100%, flex-wrap and responsive units.", []);
@@ -99,7 +102,7 @@ export function parseVerdict(text: string): VisualVerdict | null {
   try { o = JSON.parse(text.slice(a, b + 1)) as Record<string, unknown>; } catch { return null; }
   const status = String(o["status"] ?? "").toUpperCase();
   if (status !== "PASS" && status !== "FAIL") return null;
-  const types: IssueType[] = ["none", "build_error", "blank_screen", "runtime_error", "broken_layout", "missing_content", "overflow", "broken_assets", "visual_defect", "loading_stuck", "navigation_failure", "unknown"];
+  const types: IssueType[] = ["none", "build_error", "blank_screen", "runtime_error", "broken_layout", "missing_content", "overflow", "broken_assets", "visual_defect", "unstyled", "loading_stuck", "navigation_failure", "unknown"];
   const sev: Severity[] = ["none", "low", "medium", "high", "critical"];
   const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 300)).slice(0, 6) : []);
   const conf = Number(o["confidence"]);
@@ -133,4 +136,23 @@ export function diagSummary(d: PreviewDiag): string {
       v.failedRequests.length ? `failed requests: ${v.failedRequests.map((r) => `${r.status ?? r.error} ${r.url}`).join(" | ").slice(0, 500)}` : "failed requests: none",
       dom.brokenImages?.length ? `broken images: ${dom.brokenImages.join(", ").slice(0, 300)}` : ""].filter(Boolean).join("\n");
   }).join("\n\n");
+}
+
+/** Build- and browser-level style gate: the page rendered, but did its styles arrive? Each FAIL names the evidence and
+ *  the likely cause, so the repair loop fixes the wiring (import/config) instead of rewriting components. */
+export function styleVerdict(d: PreviewDiag): VisualVerdict | null {
+  const desk = d.views?.[0]; const st = desk?.dom?.styles;
+  if (!st) return null; // older runtime: no style evidence
+  const css = d.build?.cssAssets;
+  const ua = st.bodyMargin === "8px" && /^"?times|serif$/i.test(st.bodyFont.trim());
+  const failedLinks = st.links.filter((l) => !l.loaded);
+  if (failedLinks.length) return fail("unstyled", "high", `The page's stylesheet did not load in the browser (${failedLinks.map((l) => l.href).join(", ")}).`, failedLinks.map((l) => `stylesheet not loaded: ${l.href}`), "Fix the <link> href in index.html (or import the CSS from src/main.tsx instead).", ["index.html", "src/main.tsx"]);
+  if (css && css.length === 0 && st.rules === 0 && st.classCount > 0) return fail("unstyled", "high", "The site renders unstyled: the production build contains no CSS at all, so no stylesheet is imported from the app's entry point.", ["build CSS assets: none", `classes on the page: ${st.classCount}`, `stylesheet rules in the browser: 0`], "Import the stylesheet in src/main.tsx (import \"./styles/index.css\") and make sure it defines the classes the components use.", ["src/main.tsx", "src/styles/index.css"]);
+  if (st.rules === 0 && st.classCount > 0) return fail("unstyled", "high", "The site renders unstyled: the browser loaded no CSS rules.", [`classes on the page: ${st.classCount}`, `build CSS: ${(css ?? []).map((a) => `${a.file} ${a.bytes}B`).join(", ") || "unknown"}`], "Make sure the stylesheet is imported from src/main.tsx and is not empty.", ["src/main.tsx", "src/styles/index.css"]);
+  if (st.classCount >= 10 && st.unmatchedCount / st.classCount > 0.6) {
+    const tw = st.unmatchedClasses.filter((c) => /^(flex|grid|hidden|container|(p|m|px|py|mx|my|gap|w|h|text|bg|rounded|shadow|font|border|items|justify)-)/.test(c)).length > st.unmatchedClasses.length / 3;
+    return fail("unstyled", "high", tw ? `Most elements are unstyled: they use Tailwind classes (${st.unmatchedClasses.slice(0, 5).join(", ")}) but no Tailwind CSS reached the page.` : `Most elements are unstyled: ${st.unmatchedCount} of ${st.classCount} classes on the page have no CSS rule (${st.unmatchedClasses.slice(0, 6).join(", ")}).`, [`unmatched classes: ${st.unmatchedClasses.join(", ").slice(0, 300)}`, `CSS rules loaded: ${st.rules}`], tw ? "Set Tailwind up fully (config content must include ./src/**/*.{ts,tsx}, PostCSS config, @tailwind directives imported from src/main.tsx) or replace the classes with rules in src/styles/index.css." : "Add rules for these classes to the stylesheet imported from src/main.tsx (or fix the class names).", ["src/styles/index.css", "src/main.tsx"]);
+  }
+  if (ua && st.defaultButton !== false && st.defaultLinkColor !== false && st.rules < 15) return fail("unstyled", "medium", "The page looks like browser defaults (Times font, 8px body margin, default links/buttons): the site's styles are missing or ineffective.", [`body font: ${st.bodyFont}`, `CSS rules loaded: ${st.rules}`], "Import a real stylesheet from src/main.tsx with base typography, colors and component styles.", ["src/main.tsx", "src/styles/index.css"]);
+  return null;
 }

@@ -74,3 +74,29 @@ describe("fixUseBeforeInit", () => {
     expect(fixUseBeforeInit("src/a.ts", "export const A = 1;\nexport const B = A;")).toBeNull();
   });
 });
+
+import { validateViteStyles } from "../../sandbox/intelligence/validate";
+import { styleVerdict } from "../functions/preview/analyze";
+describe("style wiring", () => {
+  const mk = (files: Record<string, string>) => { const m = new Map(Object.entries(files).map(([path, content]) => [path, { path, content, encoding: "utf8" as const, updatedAt: 0 }])); return { get: (p: string) => m.get(p), list: () => [...m.values()] } as any; };
+  const pkg = JSON.stringify({ dependencies: { react: "^18" }, devDependencies: { vite: "^5" } });
+  const app = 'export default function App(){return <div className="hero"><h1 className="title">Hi</h1></div>}';
+  it("flags CSS that is never imported, and passes once main.tsx imports it", () => {
+    const bad = validateViteStyles(mk({ "package.json": pkg, "src/main.tsx": 'import App from "./App";', "src/App.tsx": app, "src/styles/index.css": ".hero{}.title{}" })).map((x) => x.code);
+    expect(bad).toContain("STYLE_NOT_IMPORTED");
+    expect(bad).toContain("NO_STYLESHEET");
+    expect(validateViteStyles(mk({ "package.json": pkg, "src/main.tsx": 'import App from "./App";\nimport "./styles/index.css";', "src/App.tsx": app, "src/styles/index.css": ".hero{}.title{}" }))).toEqual([]);
+  });
+  it("flags Tailwind classes without Tailwind and missing CSS-module keys", () => {
+    const tw = 'export default function App(){return <div className="flex p-4 bg-white text-lg rounded-lg shadow-md gap-2 items-center justify-between">x</div>}';
+    expect(validateViteStyles(mk({ "package.json": pkg, "src/main.tsx": 'import App from "./App";\nimport "./index.css";', "src/App.tsx": tw, "src/index.css": "body{margin:0}" })).map((x) => x.code)).toContain("TAILWIND_CLASSES_WITHOUT_TAILWIND");
+    const mod = validateViteStyles(mk({ "package.json": pkg, "src/main.tsx": 'import App from "./App";', "src/App.tsx": 'import s from "./App.module.css";\nexport default function App(){return <div className={s.card}/>}', "src/App.module.css": ".box{}" }));
+    expect(mod.map((x) => x.code)).toContain("CSS_MODULE_CLASS_MISSING");
+  });
+  it("browser gate fails an unstyled page and passes a styled one", () => {
+    const st = (o: object) => ({ stage: "captured", build: { cssAssets: [] }, views: [{ viewport: "desktop", width: 1, height: 1, loaded: true, loadError: null, status: 200, consoleErrors: [], consoleWarnings: [], pageErrors: [], failedRequests: [], dom: { styles: { sheets: 0, rules: 0, unreadable: 0, links: [], classCount: 12, unmatchedClasses: [], unmatchedCount: 12, bodyMargin: "8px", bodyFont: "Times New Roman", bodyBg: "", defaultLinkColor: true, defaultButton: true, ...o } } }] }) as any;
+    expect(styleVerdict(st({}))?.issueType).toBe("unstyled");
+    const ok = st({ sheets: 1, rules: 120, unmatchedCount: 1, bodyMargin: "0px", bodyFont: "Inter" }); ok.build.cssAssets = [{ file: "assets/index.css", bytes: 4000 }];
+    expect(styleVerdict(ok)).toBeNull();
+  });
+});

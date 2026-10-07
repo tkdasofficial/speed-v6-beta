@@ -130,6 +130,7 @@ export function diagSummary(d: PreviewDiag): string {
     return [`[${v.viewport} ${v.width}x${v.height}] loaded=${v.loaded} title=${JSON.stringify(dom.title ?? "")}`,
       `visibleElements=${dom.visibleElements ?? "?"} rootChildren=${dom.rootChildren ?? "?"} textLength=${dom.bodyTextLength ?? "?"} nav=${dom.hasNav ?? "?"} footer=${dom.hasFooter ?? "?"} overflow=${dom.horizontalOverflow ?? "?"} (scrollWidth ${dom.scrollWidth ?? "?"})`,
       `headings: ${(dom.headings ?? []).join(" | ").slice(0, 400)}`,
+      dom.styles ? `styles: ${dom.styles.rules} CSS rules, ${dom.styles.classCount} classes (${dom.styles.unmatchedCount} without rules), body font ${dom.styles.bodyFont}` : "",
       `visible text: ${(dom.bodyText ?? "").slice(0, 700)}`,
       v.pageErrors.length ? `page errors: ${v.pageErrors.join(" || ").slice(0, 600)}` : "page errors: none",
       v.consoleErrors.length ? `console errors: ${v.consoleErrors.join(" || ").slice(0, 600)}` : "console errors: none",

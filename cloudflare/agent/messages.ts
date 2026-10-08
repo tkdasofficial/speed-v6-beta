@@ -44,8 +44,8 @@ export function progressMessage(e: ProgressEvent, seed = 0): string {
       return e.ok === undefined ? "Running the build test." : e.ok ? "Build test passed." : `Build test failed: ${firstLine(e.error)}`;
     case "verify":
       return e.ok === undefined ? "Verifying the changes." : e.ok ? "Verification passed." : `Verification found ${pl(e.issues?.length ?? 1, "problem")}: ${firstLine(e.issues?.[0])}`;
-    case "fix": return `Fixing ${pl(e.issues.length, "problem")} (attempt ${e.attempt} of ${e.max}): ${firstLine(e.issues[0])}`;
-    case "retry": return `Retrying ${e.what} (attempt ${e.attempt} of ${e.max}).`;
+    case "fix": return `Fixing ${pl(e.issues.length, "problem")} (attempt ${e.attempt}${e.max ? ` of ${e.max}` : ""}): ${firstLine(e.issues[0])}`;
+    case "retry": return `Retrying ${e.what} (attempt ${e.attempt}${e.max ? ` of ${e.max}` : ""}).`;
     case "complete":
       return e.ok ? (e.changed ? `Done — ${pl(e.changed, "file")} changed and verified.` : "Done — no files needed changes.") : "Stopped before finishing; see the failed steps above.";
   }

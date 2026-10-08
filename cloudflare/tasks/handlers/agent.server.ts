@@ -13,12 +13,13 @@ import type { MemoryFileStore } from "../../../sandbox/workspace/workspace";
 import { AgentRun } from "../../agent/run.server";
 import type { Batch, SubTask } from "../../agent/grouping";
 
-const MAX_ROUNDS = 12;
-const MAX_REPAIRS = 3; // failed checks inside the build loop before giving up
-const MAX_FIX_ATTEMPTS = 3; // validation/test → fix → retest cycles
+// Persistent execution: no fixed repair counts. Work continues while repairs make progress (cloudflare/agent/recovery.ts)
+// and stops only when the same failure repeats unchanged, the build stalls, or a high safety ceiling is reached.
+import { RECOVERY, failureSignature, trackFailure } from "../../agent/recovery";
+const MAX_ROUNDS = RECOVERY.maxRounds;
 type Step = { kind: "read" | "create" | "edit" | "delete" | "think" | "check" | "tool"; path?: string; content?: string; find?: string; replace?: string; target?: Record<string, unknown>; note?: string; name?: string; args?: Record<string, unknown> };
 type Phase = "planning" | "awaiting" | "building" | "validating" | "previewing";
-const MAX_VISUAL_REPAIRS = 3; // preview verification → repair → rebuild → re-verify cycles
+const PREVIEW_INFRA_ATTEMPTS = 3; // build/preview infrastructure retries before reporting a server-side failure
 type State = {
   phase?: Phase; changed?: string[]; created?: string[]; lastCheck?: boolean | null; round?: number; results?: string; failedBuilds?: number;
   failedIds?: string[]; failedPatches?: string[]; pendingCreates?: number; structureFixes?: number; baseRevision?: number; mutated?: boolean; plan?: AgentPlan; planMode?: import("../../agent/planning").PlanMode; planVersion?: number; decisionSeq?: number;
@@ -27,7 +28,7 @@ type State = {
   ag?: { tasks: SubTask[]; batches: Batch[]; batchSteps: Record<string, string>; relevant?: string[] };
   finalSummaryStatus?: string;
   /** Visual preview verification (React/Vite): current runtime job, cycle count and the reported outcome. */
-  previewJob?: string | null; previewStartedAt?: number; visualAttempts?: number; preview?: string; previewWaits?: number;
+  previewJob?: string | null; previewStartedAt?: number; visualAttempts?: number; preview?: string; previewWaits?: number; buildFails?: string[]; fixSigs?: string[]; visualSigs?: string[]; stall?: number; infraAttempts?: number;
 };
 type P = { prompt?: string; model?: "speed" | "flash" | "heavy"; depth?: "quick" | "balanced" | "deep"; plan?: boolean; clientMessageId?: string; parentRunId?: string };
 
@@ -273,7 +274,7 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   if (round >= MAX_ROUNDS) { st.phase = "validating"; return { done: false, delayMs: 10 }; }
   const fs = await import("../../sandbox/fs.server");
   const { d1 } = await import("@backend/d1");
-  const prog = (label: string, frac = 0) => c.progress(0.15 + 0.6 * Math.min(1, (round + frac) / MAX_ROUNDS), label);
+  const prog = (label: string, frac = 0) => c.progress(0.15 + 0.6 * Math.min(1, (round + frac) / (round + 6)), label);
   await c.emit("step", { label: "Thinking", round });
   await prog("Thinking");
 
@@ -437,12 +438,17 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   if (built === false) {
     const err = log.filter((l) => /error/i.test(l)).slice(-1)[0] ?? "Check failed";
     await ar.progress({ type: "build", ok: false, error: err }, rid);
-    if ((st.failedBuilds ?? 0) + 1 < MAX_REPAIRS) { await ar.step({ type: "recover", name: `Repair after failed check (${(st.failedBuilds ?? 0) + 1}/${MAX_REPAIRS})`, parentStepId: rid, status: "succeeded" }); await ar.progress({ type: "retry", what: "the failed check", attempt: (st.failedBuilds ?? 0) + 2, max: MAX_REPAIRS }); }
   } else if (built === true) await ar.progress({ type: "build", ok: true }, rid);
-  if (built === true) { if (failedIds.length) await c.emit("fixed", { ids: failedIds }); st.failedIds = []; st.failedPatches = []; st.failedBuilds = 0; }
+  if (built === true) { if (failedIds.length) await c.emit("fixed", { ids: failedIds }); st.failedIds = []; st.failedPatches = []; st.failedBuilds = 0; st.buildFails = []; }
   else st.failedIds = failedIds.slice(-50);
-  if (built === false && (st.failedBuilds = (st.failedBuilds ?? 0) + 1) >= MAX_REPAIRS) {
-    return end(c, st, "failed", `Not finished. The project check still fails after ${MAX_REPAIRS} repair attempts:\n\n${log.filter((l) => /error/i.test(l)).slice(-1)[0]?.slice(0, 800) ?? "see the failed steps above."}`, `Stopped after ${MAX_REPAIRS} failed repair attempts.`);
+  if (built === false) {
+    // Detect → Diagnose → Fix → Rebuild → Verify, for as long as the failure keeps changing.
+    const lastErr = log.filter((l) => /error/i.test(l)).slice(-1)[0] ?? "Check failed";
+    const t = trackFailure(st.buildFails, failureSignature(lastErr));
+    st.buildFails = t.history; st.failedBuilds = t.attempt;
+    if (t.unrecoverable) return end(c, st, "failed", `Not finished. ${t.repeated ? `The same problem came back unchanged after ${RECOVERY.sameFailureLimit} different fixes` : `The project check still fails after ${t.attempt} repair attempts`}:\n\n${lastErr.slice(0, 800)}`, t.repeated ? "Stopped: the same failure repeated after several fixes." : `Stopped after ${t.attempt} repair attempts.`);
+    await ar.step({ type: "recover", name: `Repair after failed check (attempt ${t.attempt})`, parentStepId: rid, status: "succeeded" });
+    await ar.progress({ type: "retry", what: "the failed check", attempt: t.attempt + 1, max: 0 });
   }
   st.results = log.join("\n").slice(-12000);
   if (built === false) {
@@ -454,6 +460,9 @@ async function buildStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
     if (attached.length) st.results = `${st.results.slice(-5000)}\nFix the check errors above. Current text of the failing files is below — copy find-text exactly (without the line numbers), or rewrite a short broken file completely with "content".\n${attached.join("\n")}`;
   }
   st.round = round + 1;
+  // Stall detection: rounds that change nothing and fix nothing aren't meaningful work; move on to validation.
+  st.stall = wrote || built === true ? 0 : (st.stall ?? 0) + 1;
+  if (st.stall >= RECOVERY.stallRounds && !step.done) { st.stall = 0; st.phase = "validating"; return { done: false, delayMs: 10 }; }
   // A round that only re-runs a passing check has nothing left to do; continuing just burns AI calls.
   const acts = step.actions as Step[];
   if (!step.done && !wrote && built === true && acts.length > 0 && acts.every((a) => a.kind === "check" || (a.kind === "tool" && VERIFY.has(ALIASES[a.name ?? ""] ?? a.name ?? "")))) step.done = true;
@@ -582,23 +591,22 @@ async function complete(c: TaskContext, st: State, store: MemoryFileStore): Prom
 
 async function repair(c: TaskContext, st: State, store: MemoryFileStore, issues: string[]): Promise<StepResult> {
   const ar = await AgentRun.for(c);
-  st.fixAttempts = (st.fixAttempts ?? 0) + 1;
-  if (st.fixAttempts <= MAX_FIX_ATTEMPTS) {
-    await ar.step({ type: "recover", name: `Automatic fix ${st.fixAttempts}/${MAX_FIX_ATTEMPTS}`, status: "succeeded", metadata: { issues: issues.slice(0, 6) } });
-    await tell(c, st, { type: "fix", attempt: st.fixAttempts, max: MAX_FIX_ATTEMPTS, issues });
-    await ar.checkpoint({ type: "recovery", state: { phase: "building", fixAttempts: st.fixAttempts }, completed: st.changed ?? [], pending: issues.slice(0, 20), next: "building" });
+  const t = trackFailure(st.fixSigs, failureSignature(issues.slice().sort().join("\n")));
+  st.fixSigs = t.history; st.fixAttempts = t.attempt;
+  if (t.unrecoverable) {
+    return end(c, st, "failed", `Not finished. Validation still fails after ${t.attempt} automatic fixes${t.repeated ? " (the same problems kept coming back)" : ""}:\n\n${issues.slice(0, 6).map((i) => `- ${i}`).join("\n")}`, "Validation failed after automatic fixes.");
   }
-  if (st.fixAttempts > MAX_FIX_ATTEMPTS) {
-    return end(c, st, "failed", `Not finished. Validation still fails after ${MAX_FIX_ATTEMPTS} automatic fixes:\n\n${issues.slice(0, 6).map((i) => `- ${i}`).join("\n")}`, "Validation failed after automatic fixes.");
-  }
+  await ar.step({ type: "recover", name: `Automatic fix (attempt ${st.fixAttempts})`, status: "succeeded", metadata: { issues: issues.slice(0, 6) } });
+  await tell(c, st, { type: "fix", attempt: st.fixAttempts, max: 0, issues });
+  await ar.checkpoint({ type: "recovery", state: { phase: "building", fixAttempts: st.fixAttempts }, completed: st.changed ?? [], pending: issues.slice(0, 20), next: "building" });
   // Automatic fix: back to Thinking → Action with the real failures, then validate again.
   st.phase = "building";
   // The files named in the problems are attached verbatim: without them the model guessed find-text, every edit
   // failed with "Text not found", and the two-round fix budget ran out on re-reads.
   const named = [...new Set(issues.join("\n").match(/[\w@.\/-]+\.(?:tsx?|jsx?|css|html?|json)\b/g) ?? [])].filter((f) => store.get(f)).slice(0, 4);
   const attached = named.map((f) => `--- ${f} (current content)\n${store.get(f)!.content.slice(0, 3000)}`).join("\n");
-  st.results = `VALIDATION FAILED (fix attempt ${st.fixAttempts}/${MAX_FIX_ATTEMPTS}). Fix exactly these problems with targeted edits (copy find-text exactly from the contents below, or rewrite the file with "content"), then set done:\n${issues.map((i) => `- ${i}`).join("\n")}${attached ? `\n${attached}` : ""}`;
-  st.round = Math.min(st.round ?? 0, MAX_ROUNDS - 4);
+  st.results = `VALIDATION FAILED (fix attempt ${st.fixAttempts}). Fix exactly these problems with targeted edits (copy find-text exactly from the contents below, or rewrite the file with "content"), then set done:\n${issues.map((i) => `- ${i}`).join("\n")}${attached ? `\n${attached}` : ""}`;
+  st.stall = 0;
   await phase(c, "building");
   return { done: false, delayMs: 10 };
 }
@@ -680,7 +688,7 @@ async function previewStep(c: TaskContext, st: State, p: P): Promise<StepResult>
     "Fix the real cause with targeted edits (copy find-text exactly from the numbered contents below, without line numbers, or rewrite a short file with \"content\"), then set done. Do not re-read these files.",
     attached].filter(Boolean).join("\n");
   st.phase = "building";
-  st.round = Math.min(st.round ?? 0, MAX_ROUNDS - 4);
+  st.stall = 0;
   await phase(c, "building");
   return { done: false, delayMs: 10 };
 }

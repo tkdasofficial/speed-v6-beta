@@ -619,6 +619,21 @@ async function previewStep(c: TaskContext, st: State, p: P): Promise<StepResult>
   const pid = c.task.project_id!;
   const pv = await import("../../functions/preview/verify.server");
   const ar = await AgentRun.for(c);
+  // Build/preview infrastructure failure (GitHub runtime, job start, timeout, browser unavailable) with code that passed
+  // every check: diagnose, retry up to PREVIEW_INFRA_ATTEMPTS times, then report a server-side issue — never a code error.
+  const infra = async (reason: string): Promise<StepResult> => {
+    st.previewJob = null;
+    st.infraAttempts = (st.infraAttempts ?? 0) + 1;
+    console.warn(`[agent] preview infrastructure failure ${st.infraAttempts}/${PREVIEW_INFRA_ATTEMPTS} (${c.task.id}): ${reason.slice(0, 500)}`);
+    if (st.infraAttempts < PREVIEW_INFRA_ATTEMPTS) {
+      await c.emit("step", { label: `Retrying preview (attempt ${st.infraAttempts + 1} of ${PREVIEW_INFRA_ATTEMPTS})` });
+      await ar.progress({ type: "retry", what: "the build and preview", attempt: st.infraAttempts + 1, max: PREVIEW_INFRA_ATTEMPTS });
+      return { done: false, delayMs: 20_000 * st.infraAttempts };
+    }
+    st.preview = `Not verified — the code is valid (all checks and the build test passed), but the build/preview service failed ${PREVIEW_INFRA_ATTEMPTS} times. This looks like an internal server-side issue, not a problem in your code.`;
+    const { store } = await (await import("../../sandbox/fs.server")).loadStore(pid);
+    return complete(c, st, store);
+  };
   if (!st.previewJob) {
     await phase(c, "testing");
     await c.progress(0.92, "Verifying preview");
@@ -629,9 +644,7 @@ async function previewStep(c: TaskContext, st: State, p: P): Promise<StepResult>
     if (!s.ok) {
       // Another runtime job for this project may still be running: try again shortly, then report honestly.
       if (/still running|already running/i.test(s.error ?? "") && (st.previewWaits = (st.previewWaits ?? 0) + 1) < 20) return { done: false, delayMs: 15_000 };
-      st.preview = `Not verified (${s.error ?? "preview check could not start"})`;
-      const { store } = await (await import("../../sandbox/fs.server")).loadStore(pid);
-      return complete(c, st, store);
+      return infra(s.error ?? "preview check could not start");
     }
     st.previewWaits = 0;
     st.previewJob = s.result as string; st.previewStartedAt = Date.now();
@@ -645,6 +658,8 @@ async function previewStep(c: TaskContext, st: State, p: P): Promise<StepResult>
   }
   const jobId = st.previewJob;
   st.previewJob = null;
+  // Never finished (expired / timed out / job row missing): infrastructure, not the code.
+  if (!read || !read.done || read.diag.stage === "expired") { await pv.clearScreenshots(jobId).catch(() => undefined); return infra(!read ? "preview job not found" : "the preview check did not finish in time"); }
   const fs = await import("../../sandbox/fs.server");
   const { store } = await fs.loadStore(pid);
   const files = store.list().map((f) => f.path).filter((f) => !/^(node_modules|\.output|dist)\//.test(f));
@@ -664,23 +679,27 @@ async function previewStep(c: TaskContext, st: State, p: P): Promise<StepResult>
   await ar.finishStep(vid, { status: a.ok ? "succeeded" : "failed", error: a.ok ? null : meta.diagnosis });
   if (o?.vision) await ar.usage({ stepId: vid, provider: o.vision.provider, model: o.vision.model, requestType: "visual_verification", latencyMs: Date.now() - t0, status: "succeeded", metadata: meta });
   await ar.progress({ type: "test", ok: a.ok, ...(a.ok ? {} : { error: meta.diagnosis }) }, vid);
+  if (o?.status === "UNVERIFIABLE") return infra(o.visionNote ?? "browser check unavailable");
   if (o && o.status !== "FAIL") {
+    st.infraAttempts = 0;
     st.preview = o.status === "UNVERIFIABLE" ? `Not verified (${(o.visionNote ?? "browser check unavailable").slice(0, 200)})` : o.vision ? `Passed (rendered on desktop and mobile; visual check by ${o.vision.provider})` : `Passed (rendered with no runtime errors; visual AI check unavailable${o.visionNote ? `: ${o.visionNote.slice(0, 160)}` : ""})`;
     return complete(c, st, store);
   }
   // FAIL (or timeout): repair with the real evidence and the current file contents, then rebuild and re-verify.
-  st.visualAttempts = (st.visualAttempts ?? 0) + 1;
   const v = o?.verdict;
   const diagnosis = v?.diagnosis || a.error || "The preview did not render.";
   st.preview = `Failed: ${diagnosis.slice(0, 200)}`;
-  if (st.visualAttempts > MAX_VISUAL_REPAIRS) {
-    return end(c, st, "failed", `Not finished. The website builds, but the preview still has a problem after ${MAX_VISUAL_REPAIRS} automatic fixes:\n\n- ${diagnosis}${v?.evidence.length ? `\n- Evidence: ${v.evidence.slice(0, 2).join(" · ").slice(0, 400)}` : ""}`, "Preview verification failed after automatic fixes.");
+  st.infraAttempts = 0;
+  const vt = trackFailure(st.visualSigs, `${v?.issueType ?? "unknown"}|${failureSignature(diagnosis).slice(0, 80)}`);
+  st.visualSigs = vt.history; st.visualAttempts = vt.attempt;
+  if (vt.unrecoverable) {
+    return end(c, st, "failed", `Not finished. The website builds, but the preview still has a problem after ${vt.attempt} automatic fixes${vt.repeated ? " (the same problem kept coming back)" : ""}:\n\n- ${diagnosis}${v?.evidence.length ? `\n- Evidence: ${v.evidence.slice(0, 2).join(" · ").slice(0, 400)}` : ""}`, "Preview verification failed after automatic fixes.");
   }
-  await ar.step({ type: "recover", name: `Preview fix ${st.visualAttempts}/${MAX_VISUAL_REPAIRS}`, status: "succeeded", metadata: { issueType: meta.issueType, diagnosis: meta.diagnosis } });
-  await tell(c, st, { type: "fix", attempt: st.visualAttempts, max: MAX_VISUAL_REPAIRS, issues: [diagnosis] });
+  await ar.step({ type: "recover", name: `Preview fix (attempt ${st.visualAttempts})`, status: "succeeded", metadata: { issueType: meta.issueType, diagnosis: meta.diagnosis } });
+  await tell(c, st, { type: "fix", attempt: st.visualAttempts, max: 0, issues: [diagnosis] });
   const want = [...(v?.suggestedFiles ?? []), "src/App.tsx", "src/main.tsx", "src/App.jsx", "src/main.jsx"].filter((f, i, all) => store.get(f) && all.indexOf(f) === i).slice(0, 3);
   const attached = want.map((f) => `--- ${f} (current content, numbered)\n${store.get(f)!.content.split("\n").map((l, i) => `${i + 1}| ${l}`).join("\n").slice(0, 7000)}`).join("\n");
-  st.results = [`PREVIEW VERIFICATION FAILED (fix ${st.visualAttempts}/${MAX_VISUAL_REPAIRS}). The project builds, but in a real browser: ${diagnosis}`,
+  st.results = [`PREVIEW VERIFICATION FAILED (fix attempt ${st.visualAttempts}). The project builds, but in a real browser: ${diagnosis}`,
     v?.issueType ? `Issue type: ${v.issueType} (${v.severity})` : "",
     v?.evidence.length ? `Evidence:\n${v.evidence.map((e) => `- ${e}`).join("\n")}` : "",
     v?.suggestedFix ? `Suggested fix: ${v.suggestedFix}` : "",

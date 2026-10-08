@@ -321,12 +321,12 @@ Rules: base the plan on the real files shown; modify only files that exist; styl
 
 const strs = (x: unknown) => (Array.isArray(x) ? x.filter((v): v is string => typeof v === "string" && !!v.trim()).map((v) => v.trim().slice(0, 200)).slice(0, 12) : []);
 
-export async function createPlan(input: { model: AiModel; depth: AiDepth; projectName: string; prompt: string; files: string[]; snippets: string; previous?: AgentPlan | undefined; feedback?: string | undefined }): Promise<({ answer: string } | { plan: AgentPlan }) & { usedModel?: string; fallbacks?: { model: string; reason: string }[] }> {
+export async function createPlan(input: { model: AiModel; depth: AiDepth; projectName: string; prompt: string; files: string[]; snippets: string; previous?: AgentPlan | undefined; feedback?: string | undefined; userPlan?: boolean }): Promise<({ answer: string } | { plan: AgentPlan }) & { usedModel?: string; fallbacks?: { model: string; reason: string }[] }> {
   const safe = input.previous ? Promise.resolve(true) : isSafe(input.prompt);
   const ctx = `Project "${input.projectName}". Files (${input.files.length}): ${input.files.join(", ") || "(empty project)"}\n${input.snippets ? `Relevant file contents:\n${input.snippets}` : ""}`;
   const messages: Msg[] = [
     { role: "system", content: PLAN_PROMPT },
-    { role: "user", content: `${ctx}\n\nRequest: ${input.prompt}${input.previous ? `\n\nCurrent plan:\n${JSON.stringify(input.previous)}\n\nThe user wants this changed in the plan: ${input.feedback ?? ""}\nReturn the full updated plan.` : ""}` },
+    { role: "user", content: `${ctx}\n\nRequest: ${input.prompt}${input.previous ? `\n\nCurrent plan:\n${JSON.stringify(input.previous)}\n\nThe user wants this changed in the plan: ${input.feedback ?? ""}\nReturn the full updated plan.` : ""}${input.userPlan && !input.previous ? "\n\nThe user already wrote their own plan above. Do NOT invent a new plan: translate theirs faithfully into the JSON (files to create/modify for each of their steps), keeping their steps, scope and order; add only files their steps strictly need." : ""}` },
   ];
   const opts = { maxTokens: MAX_OUTPUT_TOKENS, think: false, json: true };
   const parse = (t: string) => {

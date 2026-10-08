@@ -24,7 +24,7 @@ export function ActionRow({ action }: { action: AgentAction }) {
   );
   // Failed actions show only their error state; technical logs stay internal (task events / agent D1) for recovery.
   if (!action.detail || action.status === "failed") return row;
-  return <div className="grid min-w-0 gap-1">{row}<ActionDetail text={action.detail} failed={action.status === "failed"} /></div>;
+  return <div className="grid min-w-0 gap-1">{row}<ActionDetail text={action.detail} failed={false} /></div>;
 }
 
 /** One compact line; the full technical detail only on request. */

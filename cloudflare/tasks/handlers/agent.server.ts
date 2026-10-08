@@ -21,7 +21,7 @@ type Phase = "planning" | "awaiting" | "building" | "validating" | "previewing";
 const MAX_VISUAL_REPAIRS = 3; // preview verification → repair → rebuild → re-verify cycles
 type State = {
   phase?: Phase; changed?: string[]; created?: string[]; lastCheck?: boolean | null; round?: number; results?: string; failedBuilds?: number;
-  failedIds?: string[]; failedPatches?: string[]; pendingCreates?: number; structureFixes?: number; baseRevision?: number; mutated?: boolean; plan?: AgentPlan; planVersion?: number; decisionSeq?: number;
+  failedIds?: string[]; failedPatches?: string[]; pendingCreates?: number; structureFixes?: number; baseRevision?: number; mutated?: boolean; plan?: AgentPlan; planMode?: import("../../agent/planning").PlanMode; planVersion?: number; decisionSeq?: number;
   feedback?: string; snippets?: string; knowledge?: string; fixAttempts?: number; validation?: string; test?: string; n?: number;
   /** Agent Core: analyzed sub-tasks, batches (with their agent_steps ids), relevant files and summary status. */
   ag?: { tasks: SubTask[]; batches: Batch[]; batchSteps: Record<string, string>; relevant?: string[] };
@@ -179,13 +179,17 @@ async function planStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
     await ar.progress({ type: "identify", files: st.ag?.relevant ?? [], taskCount: st.ag?.tasks.length ?? 1 });
   }
   if (await c.cancelled()) return { done: false, delayMs: 10 };
+  // Smart planning: only ambiguous requests (or explicit plan mode) wait for approval; a user-written plan is followed.
+  const { planMode } = await import("../../agent/planning");
+  if (!st.planMode) st.planMode = planMode(p.prompt ?? "", { fileCount: files.length, forceReview: p.plan === true });
+  if (st.planMode === "direct" && !st.plan) return startBuilding(c, st, "On it.");
   await phase(c, "planning");
-  await c.progress(0.08, "Creating Plan");
+  await c.progress(0.08, st.planMode === "provided" ? "Following your plan" : "Creating Plan");
   const [proj] = await d1<{ name: string }>("SELECT name FROM projects WHERE id = ?", [pid]);
   const { createPlan } = await import("../../functions/ai/orchestrator.server");
   const planT0 = Date.now();
   await ensureKnowledge(c, st, p.prompt ?? "", files);
-  const out = await withCancel(c, createPlan({ model: p.model ?? "speed", depth: p.depth ?? "balanced", projectName: proj?.name ?? "project", prompt: p.prompt ?? "", files, snippets: [st.knowledge, st.snippets].filter(Boolean).join("\n\n"), previous: st.plan, feedback: st.feedback }));
+  const out = await withCancel(c, createPlan({ model: p.model ?? "speed", depth: p.depth ?? "balanced", projectName: proj?.name ?? "project", prompt: p.prompt ?? "", files, snippets: [st.knowledge, st.snippets].filter(Boolean).join("\n\n"), previous: st.plan, feedback: st.feedback, userPlan: st.planMode === "provided" }));
   if (!out) return { done: false, delayMs: 10 };
   if (out.usedModel) await c.emit("model", { stage: "plan", model: out.usedModel, fallbacks: (out.fallbacks ?? []) as unknown as Json });
   // Real execution call (planning), recorded honestly; progress text never creates usage rows.
@@ -194,6 +198,10 @@ async function planStep(c: TaskContext, st: State, p: P): Promise<StepResult> {
   // Complete the plan deterministically: every file the stack needs is known before generation, not found by a failed build.
   const { completePlan } = await import("../../../sandbox/intelligence/scaffold");
   st.plan = completePlan(out.plan, files); st.planVersion = (st.planVersion ?? 0) + 1; delete st.feedback;
+  if (st.planMode !== "review") {
+    await c.emit("plan", { version: st.planVersion, plan: st.plan as unknown as Json });
+    return startBuilding(c, st, st.planMode === "provided" ? "Following your plan — starting now." : "I'll start building the project now.");
+  }
   await ar.checkpoint({ type: "stage", state: { phase: "awaiting", planVersion: st.planVersion, baseRevision: st.baseRevision }, completed: ["analyze", "plan"], pending: (st.ag?.batches ?? []).map((b) => b.id), next: "awaiting_approval" });
   await ar.stage("awaiting_approval");
   await c.emit("plan", { version: st.planVersion, plan: st.plan as unknown as Json });
@@ -214,10 +222,15 @@ async function decisionStep(c: TaskContext, st: State): Promise<StepResult> {
     await say(c, st, st.feedback, "user");
     return { done: false, delayMs: 10 };
   }
-  await c.emit("plan.approved", { version: st.planVersion ?? 1 });
+  return startBuilding(c, st, "I'll start building the project now.");
+}
+
+/** Approval (by the user, or automatic when no review is needed) → building. */
+async function startBuilding(c: TaskContext, st: State, note: string): Promise<StepResult> {
+  if (st.plan) await c.emit("plan.approved", { version: st.planVersion ?? 1 });
   await phase(c, "thinking");
   await c.progress(0.12, "Thinking");
-  await say(c, st, "I'll start building the project now.");
+  await say(c, st, note);
   await phase(c, "building");
   st.phase = "building"; st.round = 0;
   {

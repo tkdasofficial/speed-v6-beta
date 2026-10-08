@@ -60,6 +60,10 @@ export function deterministicVerdict(d: PreviewDiag): VisualVerdict | null | { u
     const pkg = /(?:No matching version found for|'|")(@?[\w./-]+@[^\s.'"]+)/.exec(d.error ?? "")?.[1];
     return fail("build_error", "critical", `Installing the project's dependencies failed${pkg ? ` (${pkg} does not exist)` : ""}, so there is no preview to open.`, [(d.error ?? "").slice(0, 600)], "Fix package.json: remove or correct the package/version that npm cannot install (e.g. drop @types packages for libraries that ship their own types).", ["package.json"]);
   }
+  // Infrastructure symptoms with no sign of a code problem (no file, TS or syntax error): the runner/network failed.
+  const err = d.error ?? "";
+  if (/ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|socket hang up|network (?:error|timeout)|rate limit|HTTP 5\d\d|502 Bad Gateway|503 Service|runner (?:has received a shutdown|lost)|The operation was canceled|No space left on device|JavaScript heap out of memory/i.test(err)
+    && !/error TS\d+|SyntaxError|is not defined|Transform failed|failed to resolve import|\.(?:tsx?|jsx?|css):\d+/i.test(err)) return { unverifiable: `Build/preview infrastructure failed: ${err.slice(0, 300)}` };
   const unresolved = /failed to resolve import ["']([^"'.\/][^"']*)["']/i.exec(d.error ?? "")?.[1];
   if (d.stage === "build" && unresolved) {
     const name = unresolved.startsWith("@") ? unresolved.split("/").slice(0, 2).join("/") : unresolved.split("/")[0]!;

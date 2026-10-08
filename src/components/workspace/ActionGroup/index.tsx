@@ -22,8 +22,9 @@ export function ActionRow({ action }: { action: AgentAction }) {
       {action.status === "pending" && <span className="ml-auto shrink-0 text-[11px] font-bold text-muted-foreground">Queued</span>}
     </div>
   );
-  if (!action.detail) return row;
-  return <div className="grid min-w-0 gap-1">{row}<ActionDetail text={action.detail} failed={action.status === "failed"} /></div>;
+  // Failed actions show only their error state; technical logs stay internal (task events / agent D1) for recovery.
+  if (!action.detail || action.status === "failed") return row;
+  return <div className="grid min-w-0 gap-1">{row}<ActionDetail text={action.detail} failed={false} /></div>;
 }
 
 /** One compact line; the full technical detail only on request. */

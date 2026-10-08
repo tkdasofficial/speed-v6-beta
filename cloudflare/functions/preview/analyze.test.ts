@@ -36,3 +36,14 @@ it("npm install failure from package.json is a code defect, not unverifiable", (
   expect(v.status).toBe("FAIL");
   expect(v.suggestedFiles).toContain("package.json");
 });
+
+import { deterministicVerdict as dv2 } from "./analyze";
+describe("infrastructure vs code build failures", () => {
+  it("treats network/runner failures as unverifiable, not code errors", () => {
+    expect(dv2({ stage: "build", error: "npm error network ECONNRESET while fetching react" } as never)).toHaveProperty("unverifiable");
+  });
+  it("keeps real compile errors as code failures", () => {
+    const r = dv2({ stage: "build", error: "src/App.tsx:4:2 error TS2304: Cannot find name 'x'. ETIMEDOUT" } as never);
+    expect(r).not.toHaveProperty("unverifiable");
+  });
+});

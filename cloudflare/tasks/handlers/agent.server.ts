@@ -682,7 +682,7 @@ async function previewStep(c: TaskContext, st: State, p: P): Promise<StepResult>
   if (o?.status === "UNVERIFIABLE") return infra(o.visionNote ?? "browser check unavailable");
   if (o && o.status !== "FAIL") {
     st.infraAttempts = 0;
-    st.preview = o.status === "UNVERIFIABLE" ? `Not verified (${(o.visionNote ?? "browser check unavailable").slice(0, 200)})` : o.vision ? `Passed (rendered on desktop and mobile; visual check by ${o.vision.provider})` : `Passed (rendered with no runtime errors; visual AI check unavailable${o.visionNote ? `: ${o.visionNote.slice(0, 160)}` : ""})`;
+    st.preview = o.vision ? `Passed (rendered on desktop and mobile; visual check by ${o.vision.provider})` : `Passed (rendered with no runtime errors; visual AI check unavailable${o.visionNote ? `: ${o.visionNote.slice(0, 160)}` : ""})`;
     return complete(c, st, store);
   }
   // FAIL (or timeout): repair with the real evidence and the current file contents, then rebuild and re-verify.
